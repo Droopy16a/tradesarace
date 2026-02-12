@@ -2,7 +2,23 @@ import React, { useMemo, useState, useEffect } from 'react';
 import './App.css';
 import Chart from './Chart';
 
-function App({ width = 900, height = 520, currency = 'bitcoin' }) {
+function App({
+  width = 900,
+  height = 520,
+  currency = 'bitcoin',
+  wallet: sharedWallet,
+  setWallet: setSharedWallet,
+  positions: sharedPositions,
+  setPositions: setSharedPositions,
+}) {
+  const marketSymbols = {
+    bitcoin: 'BTCUSD',
+    ethereum: 'ETHUSD',
+    solana: 'SOLUSD',
+    dogecoin: 'DOGEUSD',
+  };
+  const marketLabel = marketSymbols[currency] || `${currency.toUpperCase()}USD`;
+
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,14 +31,18 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   const [takeProfit, setTakeProfit] = useState('');
   const [tradeError, setTradeError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [positions, setPositions] = useState([]);
-  const [wallet, setWallet] = useState({
+  const [localPositions, setLocalPositions] = useState([]);
+  const [localWallet, setLocalWallet] = useState({
     usdBalance: 12500,
     btcBalance: 0.35,
     bonus: 185,
   });
   const [timeStampRequest, setTimeStampRequest] = useState('h');
   const [timeframeRefreshKey, setTimeframeRefreshKey] = useState(0);
+  const positions = sharedPositions ?? localPositions;
+  const setPositions = setSharedPositions ?? setLocalPositions;
+  const wallet = sharedWallet ?? localWallet;
+  const setWallet = setSharedWallet ?? setLocalWallet;
 
   function normalizeUnixTimestamp(rawTimestamp) {
     const n = Number(rawTimestamp);
@@ -110,14 +130,19 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   const notionalValue = parsedAmount * executionPrice;
   const estimatedMargin = parsedLeverage > 0 ? notionalValue / parsedLeverage : 0;
 
+  const marketPositions = useMemo(
+    () => positions.filter((position) => position.currency === currency),
+    [positions, currency]
+  );
+
   const unrealizedPnl = useMemo(() => {
-    if (!positions.length || !latestPrice) return 0;
-    return positions.reduce((total, position) => {
+    if (!marketPositions.length || !latestPrice) return 0;
+    return marketPositions.reduce((total, position) => {
       const direction = position.side === 'buy' ? 1 : -1;
       const pnl = (latestPrice - position.executionPrice) * position.amount * direction * position.leverage;
       return total + pnl;
     }, 0);
-  }, [positions, latestPrice]);
+  }, [marketPositions, latestPrice]);
 
   const availableBalance = useMemo(() => {
     const marginInUse = positions.reduce((total, pos) => {
@@ -127,7 +152,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   }, [wallet.usdBalance, positions]);
 
   const positionsSummary = useMemo(() => {
-    return positions.reduce(
+    return marketPositions.reduce(
       (acc, position) => {
         const direction = position.side === 'buy' ? 1 : -1;
         const pnl = latestPrice
@@ -142,7 +167,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
       },
       { notional: 0, margin: 0, longCount: 0, shortCount: 0, winning: 0 }
     );
-  }, [positions, latestPrice]);
+  }, [marketPositions, latestPrice]);
 
   function formatCurrency(value) {
     return `$${Number(value || 0).toLocaleString(undefined, {
@@ -204,7 +229,8 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
     }
 
     const newPosition = {
-      id: Date.now(),
+      id: `${currency}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      currency,
       side,
       orderType,
       leverage: parsedLeverage,
@@ -216,10 +242,6 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
     };
 
     setPositions((current) => [...current, newPosition]);
-    setWallet((current) => ({
-      ...current,
-      usdBalance: current.usdBalance,
-    }));
 
     setSuccessMessage(
       `Position opened: ${side === 'buy' ? 'LONG' : 'SHORT'} ${parsedAmount} BTC at ${formatCurrency(
@@ -236,7 +258,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   }
 
   function handleClosePosition(positionId) {
-    const position = positions.find((p) => p.id === positionId);
+    const position = marketPositions.find((p) => p.id === positionId);
     if (!position || !latestPrice) return;
 
     const direction = position.side === 'buy' ? 1 : -1;
@@ -256,9 +278,9 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   }
 
   function handleCloseAllPositions() {
-    if (!positions.length || !latestPrice) return;
+    if (!marketPositions.length || !latestPrice) return;
 
-    const totals = positions.reduce(
+    const totals = marketPositions.reduce(
       (acc, position) => {
         const direction = position.side === 'buy' ? 1 : -1;
         const pnl = (latestPrice - position.executionPrice) * position.amount * direction * position.leverage;
@@ -274,7 +296,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
       ...current,
       usdBalance: current.usdBalance + totals.returnedMargin + totals.pnl,
     }));
-    setPositions([]);
+    setPositions((current) => current.filter((position) => position.currency !== currency));
     setSuccessMessage(
       `All positions closed. Net PnL: ${totals.pnl >= 0 ? '+' : ''}${formatCurrency(totals.pnl)}`
     );
@@ -282,9 +304,9 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
   }
 
   useEffect(() => {
-    if (!latestPrice || !positions.length) return;
+    if (!latestPrice || !marketPositions.length) return;
 
-    positions.forEach((position) => {
+    marketPositions.forEach((position) => {
       let shouldClose = false;
 
       if (position.stopLoss) {
@@ -307,7 +329,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
         handleClosePosition(position.id);
       }
     });
-  }, [latestPrice, positions]);
+  }, [latestPrice, marketPositions]);
 
   return (
     <div className="app-shell">
@@ -316,7 +338,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
           <h1>TRADESARACE Pro</h1>
           <p>{currency.toUpperCase()} perpetual simulator</p>
         </div>
-        <div className="market-pill">BTCUSD LIVE</div>
+        <div className="market-pill">{marketLabel} LIVE</div>
       </header>
 
       <div className="app-content">
@@ -356,10 +378,10 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
             )}
           </div>
 
-          {positions.length > 0 && (
+          {marketPositions.length > 0 && (
             <section className="positions-panel">
               <div className="positions-panel-head">
-                <h2>Open Positions ({positions.length})</h2>
+                <h2>Open Positions ({marketPositions.length})</h2>
                 <button
                   type="button"
                   className="close-all-btn"
@@ -389,7 +411,7 @@ function App({ width = 900, height = 520, currency = 'bitcoin' }) {
                 </article>
               </div>
               <div className="positions-list">
-                {positions.map((position) => {
+                {marketPositions.map((position) => {
                   const direction = position.side === 'buy' ? 1 : -1;
                   const positionPnl = latestPrice
                     ? (latestPrice - position.executionPrice) * position.amount * direction * position.leverage
