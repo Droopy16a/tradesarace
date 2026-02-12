@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/tradesarace/static/css/main.90c1ae35.css",
-    "main.js": "/tradesarace/static/js/main.9e32918b.js",
+    "main.css": "/tradesarace/static/css/main.8deaeca4.css",
+    "main.js": "/tradesarace/static/js/main.8aceb047.js",
     "static/js/453.a6843f66.chunk.js": "/tradesarace/static/js/453.a6843f66.chunk.js",
     "index.html": "/tradesarace/index.html",
-    "main.90c1ae35.css.map": "/tradesarace/static/css/main.90c1ae35.css.map",
-    "main.9e32918b.js.map": "/tradesarace/static/js/main.9e32918b.js.map",
+    "main.8deaeca4.css.map": "/tradesarace/static/css/main.8deaeca4.css.map",
+    "main.8aceb047.js.map": "/tradesarace/static/js/main.8aceb047.js.map",
     "453.a6843f66.chunk.js.map": "/tradesarace/static/js/453.a6843f66.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.90c1ae35.css",
-    "static/js/main.9e32918b.js"
+    "static/css/main.8deaeca4.css",
+    "static/js/main.8aceb047.js"
   ]
 }
