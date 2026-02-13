@@ -328,8 +328,15 @@ body {
 }
 
 .chart-wrapper {
+  position: relative;
   width: 100%;
   overflow: hidden;
+}
+
+.chart-pipe-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .chart-terminal {
@@ -375,6 +382,27 @@ body {
   background: rgba(81, 128, 255, 0.15);
 }
 
+.chart-terminal.is-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  padding: 12px 12px 8px;
+}
+
+.chart-terminal.is-zooming {
+  animation: chartZoomPulse 0.26s ease-out;
+  transform-origin: bottom right;
+}
+
+@keyframes chartZoomPulse {
+  0% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .chart-ohlc {
   display: flex;
   gap: 12px;
@@ -399,6 +427,64 @@ body {
   padding: 4px 7px;
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.position-overlays {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.position-overlay-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed;
+}
+
+.position-overlay-line.buy {
+  border-color: rgba(45, 212, 163, 0.65);
+}
+
+.position-overlay-line.sell {
+  border-color: rgba(255, 106, 117, 0.65);
+}
+
+.position-overlay-label {
+  position: absolute;
+  right: -2px;
+  top: -10px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(143, 154, 188, 0.34);
+  background: rgba(9, 15, 29, 0.92);
+  color: #d7e3ff;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+
+.fullscreen-fab {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 154, 188, 0.45);
+  background: rgba(9, 15, 29, 0.94);
+  color: #dbe5ff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .wallet-panel h2,
@@ -935,9 +1021,21 @@ body {
   }
 
   .chart-tools button,
-  .chart-timeframes button {
+  .chart-timeframes button,
+  .fullscreen-fab {
     font-size: 0.68rem;
+  }
+
+  .chart-tools button,
+  .chart-timeframes button {
     padding: 4px 7px;
+  }
+
+  .fullscreen-fab {
+    width: 28px;
+    height: 28px;
+    right: 6px;
+    bottom: 6px;
   }
 
   .chart-ohlc {
@@ -955,6 +1053,11 @@ body {
     right: 8px;
     font-size: 0.68rem;
     padding: 3px 6px;
+  }
+
+  .position-overlay-label {
+    max-width: 130px;
+    font-size: 0.6rem;
   }
 
   .wallet-panel,

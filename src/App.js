@@ -369,6 +369,7 @@ function App({
                 width={width}
                 height={height}
                 data={data}
+                positions={marketPositions}
                 timeStampRequest={timeStampRequest}
                 setTimeStampRequest={setTimeStampRequestWrapper}
               />
