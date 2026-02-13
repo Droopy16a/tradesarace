@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../src/lib/auth-db';
+import { query } from '../../../src/lib/auth-db';
 
 const DEFAULT_WALLET = {
   usdBalance: 20000,
@@ -39,6 +39,7 @@ function normalizePositions(positions) {
 }
 
 function parseJson(value, fallback) {
+  if (value && typeof value === 'object') return value;
   try {
     return value ? JSON.parse(value) : fallback;
   } catch {
@@ -58,11 +59,11 @@ export async function GET(request) {
   }
 
   try {
-    const db = await getDb();
-    const user = await db.get(
-      'SELECT id, wallet_json, positions_json FROM users WHERE id = ?',
-      userId
+    const result = await query(
+      'SELECT id, wallet_json, positions_json FROM users WHERE id = $1',
+      [userId]
     );
+    const user = result.rows[0];
 
     if (!user) {
       return NextResponse.json(
@@ -97,16 +98,12 @@ export async function PUT(request) {
 
     const wallet = normalizeWallet(body?.wallet);
     const positions = normalizePositions(body?.positions);
-    const db = await getDb();
-
-    const result = await db.run(
-      'UPDATE users SET wallet_json = ?, positions_json = ? WHERE id = ?',
-      JSON.stringify(wallet),
-      JSON.stringify(positions),
-      userId
+    const result = await query(
+      'UPDATE users SET wallet_json = $1::jsonb, positions_json = $2::jsonb WHERE id = $3',
+      [JSON.stringify(wallet), JSON.stringify(positions), userId]
     );
 
-    if (!result.changes) {
+    if (!result.rowCount) {
       return NextResponse.json(
         { ok: false, message: 'User not found.' },
         { status: 404 }

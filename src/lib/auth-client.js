@@ -9,10 +9,15 @@ export function loadStoredUser() {
 
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
-    if (typeof parsed.id !== 'number') return null;
+    const numericId = Number(parsed.id);
+    if (!Number.isFinite(numericId) || numericId <= 0) return null;
     if (typeof parsed.name !== 'string') return null;
     if (typeof parsed.email !== 'string') return null;
-    return parsed;
+    return {
+      id: numericId,
+      name: parsed.name,
+      email: parsed.email,
+    };
   } catch {
     return null;
   }
@@ -20,7 +25,15 @@ export function loadStoredUser() {
 
 export function storeUser(user) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  const normalized = {
+    id: Number(user?.id),
+    name: String(user?.name || ''),
+    email: String(user?.email || ''),
+  };
+
+  if (!Number.isFinite(normalized.id) || normalized.id <= 0) return;
+  if (!normalized.name || !normalized.email) return;
+  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(normalized));
 }
 
 export function clearStoredUser() {

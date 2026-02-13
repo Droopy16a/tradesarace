@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../src/lib/auth-db';
+import { query } from '../../../src/lib/auth-db';
 
 function parseWallet(walletJson) {
+  if (walletJson && typeof walletJson === 'object') return walletJson;
   try {
     return walletJson ? JSON.parse(walletJson) : null;
   } catch {
@@ -28,10 +29,10 @@ export async function GET(request) {
     : 10;
 
   try {
-    const db = await getDb();
-    const rows = await db.all(
+    const result = await query(
       'SELECT id, name, email, wallet_json FROM users'
     );
+    const rows = result.rows;
 
     const sorted = rows
       .map((row) => {

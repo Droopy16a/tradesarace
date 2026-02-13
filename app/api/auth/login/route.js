@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../../src/lib/auth-db';
+import { query } from '../../../../src/lib/auth-db';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -19,11 +19,11 @@ export async function POST(request) {
       );
     }
 
-    const db = await getDb();
-    const user = await db.get(
-      'SELECT id, name, email, password_hash FROM users WHERE email = ?',
-      email
+    const result = await query(
+      'SELECT id, name, email, password_hash FROM users WHERE email = $1',
+      [email]
     );
+    const user = result.rows[0];
 
     if (!user) {
       return NextResponse.json(
@@ -43,7 +43,7 @@ export async function POST(request) {
     return NextResponse.json({
       ok: true,
       message: 'Login successful.',
-      user: { id: user.id, name: user.name, email: user.email },
+      user: { id: Number(user.id), name: user.name, email: user.email },
     });
   } catch (error) {
     return NextResponse.json(

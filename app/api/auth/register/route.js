@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
-import { getDb } from '../../../../src/lib/auth-db';
+import { query } from '../../../../src/lib/auth-db';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -33,26 +33,25 @@ export async function POST(request) {
       );
     }
 
-    const db = await getDb();
     const passwordHash = await bcrypt.hash(password, 10);
 
     try {
-      const result = await db.run(
-        'INSERT INTO users (name, email, password_hash, wallet_json, positions_json) VALUES (?, ?, ?, ?, ?)',
-        name,
-        email,
-        passwordHash,
-        JSON.stringify(DEFAULT_WALLET),
-        JSON.stringify([])
+      const result = await query(
+        `
+          INSERT INTO users (name, email, password_hash, wallet_json, positions_json)
+          VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+          RETURNING id
+        `,
+        [name, email, passwordHash, JSON.stringify(DEFAULT_WALLET), JSON.stringify([])]
       );
 
       return NextResponse.json({
         ok: true,
         message: 'Registration successful.',
-        user: { id: result.lastID, name, email },
+        user: { id: Number(result.rows[0].id), name, email },
       });
     } catch (error) {
-      if (String(error?.message || '').includes('UNIQUE')) {
+      if (error?.code === '23505') {
         return NextResponse.json(
           { ok: false, message: 'An account with this email already exists.' },
           { status: 409 }
