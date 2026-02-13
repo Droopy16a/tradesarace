@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LineChart } from '@mui/x-charts/LineChart';
 
 function Chart({
@@ -16,7 +16,10 @@ function Chart({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
   const [chartType, setChartType] = useState('line');
+  const [viewport, setViewport] = useState({ start: 0, end: 1 });
+  const [isPanning, setIsPanning] = useState(false);
   const pipeClipId = useId().replace(/:/g, '');
+  const panStartRef = useRef({ x: 0, viewportStart: 0, viewportEnd: 1 });
 
   useEffect(() => {
     function updateChartSize() {
@@ -73,19 +76,34 @@ function Chart({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, [height, width]);
 
+  useEffect(() => {
+    setViewport({ start: 0, end: 1 });
+  }, [timeStampRequest, data.length]);
+
   if (!data || data.length === 0) return null;
 
-  const yValues = data.map((point) => point.y);
+  const totalPoints = data.length;
+  const minVisibleRange = Math.max((totalPoints > 1 ? 12 / (totalPoints - 1) : 1), 0.04);
+  const clampedStart = Math.max(0, Math.min(viewport.start, 1));
+  const clampedEnd = Math.max(clampedStart + minVisibleRange, Math.min(viewport.end, 1));
+  const startIndex = Math.max(0, Math.floor(clampedStart * (totalPoints - 1)));
+  const endIndex = Math.min(totalPoints - 1, Math.ceil(clampedEnd * (totalPoints - 1)));
+  const visibleData = useMemo(() => {
+    const sliced = data.slice(startIndex, endIndex + 1);
+    return sliced.length >= 2 ? sliced : data;
+  }, [data, startIndex, endIndex]);
+
+  const yValues = visibleData.map((point) => point.y);
   const minY = Math.min(...yValues);
   const maxY = Math.max(...yValues);
   const range = Math.max(maxY - minY, 1);
   const padding = range * 0.08;
 
-  const latest = data[data.length - 1];
-  const previous = data[data.length - 2] || latest;
+  const latest = visibleData[visibleData.length - 1];
+  const previous = visibleData[visibleData.length - 2] || latest;
   const isUp = (latest?.y || 0) >= (previous?.y || 0);
 
-  const open = Number(data[0]?.y || 0);
+  const open = Number(visibleData[0]?.y || 0);
   const close = Number(latest?.y || 0);
   const high = maxY;
   const low = minY;
@@ -108,10 +126,10 @@ function Chart({
 
   const plotWidth = Math.max(chartWidth - chartMargin.left - chartMargin.right, 1);
   const plotHeight = Math.max(chartHeight - chartMargin.top - chartMargin.bottom, 1);
-  const minTime = data[0]?.x?.getTime?.() || 0;
-  const maxTime = data[data.length - 1]?.x?.getTime?.() || minTime + 1;
+  const minTime = visibleData[0]?.x?.getTime?.() || 0;
+  const maxTime = visibleData[visibleData.length - 1]?.x?.getTime?.() || minTime + 1;
   const timeRange = Math.max(maxTime - minTime, 1);
-  const tickHalfWidth = Math.max(Math.min(plotWidth / Math.max(data.length * 3, 1), 6), 2);
+  const tickHalfWidth = Math.max(Math.min(plotWidth / Math.max(visibleData.length * 3, 1), 6), 2);
   const leftPadding = tickHalfWidth + 2;
   const rightPadding = tickHalfWidth + 56;
   const xDrawableWidth = Math.max(plotWidth - leftPadding - rightPadding, 1);
@@ -120,9 +138,9 @@ function Chart({
     return Math.min(Math.max(value, min), max);
   }
 
-  const pipeBars = data.map((point, index) => {
-    const prev = data[index - 1]?.y ?? point.y;
-    const next = data[index + 1]?.y ?? point.y;
+  const pipeBars = visibleData.map((point, index) => {
+    const prev = visibleData[index - 1]?.y ?? point.y;
+    const next = visibleData[index + 1]?.y ?? point.y;
     const openValue = Number(prev);
     const closeValue = Number(point.y);
     const highValue = Math.max(openValue, closeValue, Number(next));
@@ -169,6 +187,76 @@ function Chart({
     } catch {
       // Ignore fullscreen errors (unsupported browser, denied permission, etc.)
     }
+  }
+
+  function handleWheel(event) {
+    if (!isFullscreen) return;
+    event.preventDefault();
+
+    const rect = chartWrapperRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+
+    const xRatio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    setViewport((current) => {
+      const currentRange = current.end - current.start;
+      const zoomFactor = event.deltaY > 0 ? 1.14 : 0.86;
+      let nextRange = Math.min(Math.max(currentRange * zoomFactor, minVisibleRange), 1);
+      const anchor = current.start + xRatio * currentRange;
+      let nextStart = anchor - xRatio * nextRange;
+      let nextEnd = nextStart + nextRange;
+
+      if (nextStart < 0) {
+        nextStart = 0;
+        nextEnd = nextRange;
+      }
+      if (nextEnd > 1) {
+        nextEnd = 1;
+        nextStart = 1 - nextRange;
+      }
+      return { start: nextStart, end: nextEnd };
+    });
+  }
+
+  function handlePointerDown(event) {
+    if (!isFullscreen) return;
+    if (event.target instanceof Element && event.target.closest('.fullscreen-fab')) return;
+    const rect = chartWrapperRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+
+    panStartRef.current = {
+      x: event.clientX,
+      viewportStart: viewport.start,
+      viewportEnd: viewport.end,
+    };
+    setIsPanning(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handlePointerMove(event) {
+    if (!isFullscreen || !isPanning) return;
+    const rect = chartWrapperRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+
+    const dxRatio = (event.clientX - panStartRef.current.x) / rect.width;
+    const rangeWidth = panStartRef.current.viewportEnd - panStartRef.current.viewportStart;
+    let nextStart = panStartRef.current.viewportStart - dxRatio * rangeWidth;
+    let nextEnd = panStartRef.current.viewportEnd - dxRatio * rangeWidth;
+
+    if (nextStart < 0) {
+      nextStart = 0;
+      nextEnd = rangeWidth;
+    }
+    if (nextEnd > 1) {
+      nextEnd = 1;
+      nextStart = 1 - rangeWidth;
+    }
+    setViewport({ start: nextStart, end: nextEnd });
+  }
+
+  function handlePointerUp(event) {
+    if (!isPanning) return;
+    setIsPanning(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
   }
 
   return (
@@ -243,11 +331,21 @@ function Chart({
         </strong>
       </div>
 
-      <div className="chart-wrapper" ref={chartWrapperRef}>
+      <div
+        className={`chart-wrapper ${isFullscreen ? 'zoomable' : ''} ${isPanning ? 'panning' : ''}`}
+        ref={chartWrapperRef}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      >
         <LineChart
           width={chartWidth}
           height={chartHeight}
-          dataset={data}
+          dataset={visibleData}
+          skipAnimation={isFullscreen}
           margin={chartMargin}
           grid={{ horizontal: true, vertical: true }}
           xAxis={[
@@ -283,11 +381,13 @@ function Chart({
             '& .MuiLineElement-root': {
               stroke: chartType === 'line' ? (isUp ? '#2dd4a3' : '#ff6a75') : 'rgba(0,0,0,0)',
               strokeWidth: chartType === 'line' ? 2.3 : 0,
+              transition: isFullscreen ? 'none !important' : undefined,
             },
             '& .MuiAreaElement-root': {
               fill: chartType === 'line'
                 ? (isUp ? 'rgba(45, 212, 163, 0.13)' : 'rgba(255, 106, 117, 0.13)')
                 : 'rgba(0,0,0,0)',
+              transition: isFullscreen ? 'none !important' : undefined,
             },
             '& .MuiChartsGrid-line': {
               stroke: 'rgba(126, 147, 190, 0.18)',
@@ -363,6 +463,7 @@ function Chart({
         <button
           type="button"
           className="fullscreen-fab"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={toggleFullscreen}
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}

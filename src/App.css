@@ -333,6 +333,14 @@ body {
   overflow: hidden;
 }
 
+.chart-wrapper.zoomable {
+  cursor: grab;
+}
+
+.chart-wrapper.zoomable.panning {
+  cursor: grabbing;
+}
+
 .chart-pipe-overlay {
   position: absolute;
   pointer-events: none;
