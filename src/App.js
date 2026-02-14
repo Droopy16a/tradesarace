@@ -20,6 +20,7 @@ function App({
   const marketLabel = marketSymbols[currency] || `${currency.toUpperCase()}USD`;
 
   const [data, setData] = useState([]);
+  const [livePrice, setLivePrice] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [side, setSide] = useState('buy');
@@ -118,10 +119,56 @@ function App({
     };
   }, [currency, timeStampRequest, timeframeRefreshKey]);
 
+  useEffect(() => {
+    let isActive = true;
+    let timeoutId;
+    let activeController;
+
+    async function loadLivePrice() {
+      activeController = new AbortController();
+
+      try {
+        const response = await fetch(
+          `https://price-api.crypto.com/price/v2/h/${currency}/?t=${Date.now()}`,
+          {
+            signal: activeController.signal,
+            cache: 'no-store',
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch live price (${response.status})`);
+        }
+
+        const payload = await response.json();
+        const prices = payload?.prices || [];
+        const latestHourly = prices[prices.length - 1]?.[1];
+        const nextLivePrice = Number(latestHourly) || 0;
+
+        if (isActive && nextLivePrice > 0) {
+          setLivePrice(nextLivePrice);
+        }
+      } catch (fetchError) {
+        if (!isActive || fetchError.name === 'AbortError') return;
+      } finally {
+        if (isActive) {
+          timeoutId = setTimeout(loadLivePrice, 10000);
+        }
+      }
+    }
+
+    loadLivePrice();
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+      if (activeController) activeController.abort();
+    };
+  }, [currency]);
+
   const latestPrice = useMemo(() => {
-    if (!data.length) return 0;
-    return Number(data[data.length - 1]?.y) || 0;
-  }, [data]);
+    return livePrice || Number(data[data.length - 1]?.y) || 0;
+  }, [livePrice, data]);
 
   const parsedAmount = Number(amount) || 0;
   const parsedLeverage = Number(leverage) || 1;
@@ -176,8 +223,8 @@ function App({
     })}`;
   }
 
-  function formatBtc(value) {
-    return `${Number(value || 0).toFixed(4)} BTC`;
+  function formatBtc(value, cryptoSymbol = 'BTC') {
+    return `${Number(value || 0).toFixed(4)} ${cryptoSymbol}`;
   }
 
   function validateOrder() {
@@ -370,6 +417,7 @@ function App({
                 height={height}
                 data={data}
                 positions={marketPositions}
+                livePrice={latestPrice}
                 timeStampRequest={timeStampRequest}
                 setTimeStampRequest={setTimeStampRequestWrapper}
               />
@@ -436,7 +484,7 @@ function App({
                       <div className="position-details">
                         <div>
                           <span>Size:</span>
-                          <strong>{formatBtc(position.amount)}</strong>
+                          <strong>{formatBtc(position.amount, position.cryptoSymbol)}</strong>
                         </div>
                         <div>
                           <span>Entry:</span>

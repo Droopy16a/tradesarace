@@ -6,6 +6,7 @@ function Chart({
   height = 500,
   data = [],
   positions = [],
+  livePrice = 0,
   timeStampRequest = 'h',
   setTimeStampRequest = () => {},
 }) {
@@ -102,6 +103,7 @@ function Chart({
   const latest = visibleData[visibleData.length - 1];
   const previous = visibleData[visibleData.length - 2] || latest;
   const isUp = (latest?.y || 0) >= (previous?.y || 0);
+  const displayedLivePrice = Number(livePrice) || Number(latest?.y || 0);
 
   const open = Number(visibleData[0]?.y || 0);
   const close = Number(latest?.y || 0);
@@ -473,7 +475,7 @@ function Chart({
       </div>
 
       <div className={`live-price-tag ${isUp ? 'up' : 'down'}`}>
-        ${formatPrice(latest?.y || 0)}
+        ${formatPrice(displayedLivePrice)}
       </div>
     </div>
   );
