@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import { query } from '../../../../src/lib/auth-db';
-import { createSessionToken, sessionCookieConfig } from '../../../../src/lib/session';
+import {
+  createSessionToken,
+  SESSION_COOKIE_NAME,
+  sessionCookieOptions,
+} from '../../../../src/lib/session';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -46,7 +50,11 @@ export async function POST(request) {
       message: 'Login successful.',
       user: { id: Number(user.id), name: user.name, email: user.email },
     });
-    response.cookies.set(sessionCookieConfig(createSessionToken(Number(user.id))));
+    response.cookies.set(
+      SESSION_COOKIE_NAME,
+      createSessionToken(Number(user.id)),
+      sessionCookieOptions()
+    );
     return response;
   } catch (error) {
     return NextResponse.json(

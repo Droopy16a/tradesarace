@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const SESSION_COOKIE_NAME = 'tradesarace_session';
+export const SESSION_COOKIE_NAME = 'tradesarace_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 function getSessionSecret() {
@@ -72,10 +72,8 @@ export function getSessionUserIdFromRequest(request) {
   return session?.userId ?? null;
 }
 
-export function sessionCookieConfig(token) {
+export function sessionCookieOptions() {
   return {
-    name: SESSION_COOKIE_NAME,
-    value: token,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -84,10 +82,8 @@ export function sessionCookieConfig(token) {
   };
 }
 
-export function expiredSessionCookieConfig() {
+export function expiredSessionCookieOptions() {
   return {
-    name: SESSION_COOKIE_NAME,
-    value: '',
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

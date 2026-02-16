@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { expiredSessionCookieConfig } from '../../../../src/lib/session';
+import {
+  expiredSessionCookieOptions,
+  SESSION_COOKIE_NAME,
+} from '../../../../src/lib/session';
 
 export async function POST() {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(expiredSessionCookieConfig());
+  response.cookies.set(
+    SESSION_COOKIE_NAME,
+    '',
+    expiredSessionCookieOptions()
+  );
   return response;
 }
-
