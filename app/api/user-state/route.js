@@ -94,10 +94,11 @@ export async function PUT(request) {
 
   try {
     const body = await request.json();
+    const wallet = normalizeWallet(body?.wallet);
     const positions = normalizePositions(body?.positions);
     const result = await query(
-      'UPDATE users SET positions_json = $1::jsonb WHERE id = $2',
-      [JSON.stringify(positions), userId]
+      'UPDATE users SET wallet_json = $1::jsonb, positions_json = $2::jsonb WHERE id = $3',
+      [JSON.stringify(wallet), JSON.stringify(positions), userId]
     );
 
     if (!result.rowCount) {
@@ -107,7 +108,7 @@ export async function PUT(request) {
       );
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, wallet, positions });
   } catch {
     return NextResponse.json(
       { ok: false, message: 'Unable to save user state.' },
