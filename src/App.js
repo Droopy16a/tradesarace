@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import Chart from './Chart';
 import Leaderboard from './Leaderboard';
 
@@ -10,6 +10,7 @@ function App({
   setWallet: setSharedWallet,
   positions: sharedPositions,
   setPositions: setSharedPositions,
+  isAuthenticated = false,
 }) {
   const marketSymbols = {
     bitcoin: 'BTCUSD',
@@ -44,6 +45,15 @@ function App({
   const setPositions = setSharedPositions ?? setLocalPositions;
   const wallet = sharedWallet ?? localWallet;
   const setWallet = setSharedWallet ?? setLocalWallet;
+  const closingIdsRef = useRef(new Set());
+
+  function normalizeServerPositions(nextPositions) {
+    if (!Array.isArray(nextPositions)) return [];
+    return nextPositions.map((position) => ({
+      ...position,
+      placedAt: position?.placedAt ? new Date(position.placedAt) : new Date(),
+    }));
+  }
 
   function normalizeUnixTimestamp(rawTimestamp) {
     const n = Number(rawTimestamp);
@@ -264,7 +274,7 @@ function App({
     return null;
   }
 
-  function handlePlaceOrder(event) {
+  async function handlePlaceOrder(event) {
     event.preventDefault();
     setTradeError('');
     setSuccessMessage('');
@@ -275,7 +285,7 @@ function App({
       return;
     }
 
-    const newPosition = {
+    const nextPositionPayload = {
       id: `${currency}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       currency,
       side,
@@ -288,7 +298,36 @@ function App({
       placedAt: new Date(),
     };
 
-    setPositions((current) => [...current, newPosition]);
+    if (isAuthenticated) {
+      try {
+        const response = await fetch('/api/user-state/open-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currency,
+            side,
+            orderType,
+            leverage: parsedLeverage,
+            amount: parsedAmount,
+            executionPrice,
+            stopLoss: Number(stopLoss) || null,
+            takeProfit: Number(takeProfit) || null,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload?.ok) {
+          setTradeError(payload?.message || 'Unable to open position.');
+          return;
+        }
+        setWallet(payload.wallet);
+        setPositions(normalizeServerPositions(payload.positions));
+      } catch {
+        setTradeError('Unable to open position.');
+        return;
+      }
+    } else {
+      setPositions((current) => [...current, nextPositionPayload]);
+    }
 
     setSuccessMessage(
       `Position opened: ${side === 'buy' ? 'LONG' : 'SHORT'} ${parsedAmount} ${marketLabel} at ${formatCurrency(
@@ -304,37 +343,88 @@ function App({
     setTimeout(() => setSuccessMessage(''), 5000);
   }
 
-  function handleClosePosition(positionId) {
+  async function handleClosePosition(positionId) {
+    if (closingIdsRef.current.has(positionId)) return;
+    closingIdsRef.current.add(positionId);
+
     const position = marketPositions.find((p) => p.id === positionId);
-    if (!position || !latestPrice) return;
+    if (!position || !latestPrice) {
+      closingIdsRef.current.delete(positionId);
+      return;
+    }
 
-    const direction = position.side === 'buy' ? 1 : -1;
-    const pnl = (latestPrice - position.executionPrice) * position.amount * direction * position.leverage;
+    try {
+      if (isAuthenticated) {
+        const response = await fetch('/api/user-state/close-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ positionId }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload?.ok) {
+          setTradeError(payload?.message || 'Unable to close position.');
+          return;
+        }
 
-    setWallet((current) => ({
-      ...current,
-      usdBalance: current.usdBalance + pnl,
-    }));
-
-    setPositions((current) => current.filter((p) => p.id !== positionId));
-    setSuccessMessage(
-      `Position closed. PnL: ${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`
-    );
-    setTimeout(() => setSuccessMessage(''), 5000);
-  }
-
-  function handleCloseAllPositions() {
-    if (!marketPositions.length || !latestPrice) return;
-
-    const totals = marketPositions.reduce(
-      (acc, position) => {
+        setWallet(payload.wallet);
+        setPositions(normalizeServerPositions(payload.positions));
+        setSuccessMessage(
+          `Position closed. PnL: ${payload.closedPnl >= 0 ? '+' : ''}${formatCurrency(payload.closedPnl)}`
+        );
+      } else {
         const direction = position.side === 'buy' ? 1 : -1;
         const pnl = (latestPrice - position.executionPrice) * position.amount * direction * position.leverage;
-        acc.pnl += pnl;
-        return acc;
-      },
-      { pnl: 0 }
-    );
+
+        setWallet((current) => ({
+          ...current,
+          usdBalance: current.usdBalance + pnl,
+        }));
+
+        setPositions((current) => current.filter((p) => p.id !== positionId));
+        setSuccessMessage(
+          `Position closed. PnL: ${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}`
+        );
+      }
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } finally {
+      closingIdsRef.current.delete(positionId);
+    }
+  }
+
+  async function handleCloseAllPositions() {
+    if (!marketPositions.length || !latestPrice) return;
+
+    if (isAuthenticated) {
+      try {
+        const response = await fetch('/api/user-state/close-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ closeAll: true, currency }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload?.ok) {
+          setTradeError(payload?.message || 'Unable to close all positions.');
+          return;
+        }
+        setWallet(payload.wallet);
+        setPositions(normalizeServerPositions(payload.positions));
+        setSuccessMessage(
+          `All positions closed. Net PnL: ${payload.closedPnl >= 0 ? '+' : ''}${formatCurrency(payload.closedPnl)}`
+        );
+        setTimeout(() => setSuccessMessage(''), 5000);
+        return;
+      } catch {
+        setTradeError('Unable to close all positions.');
+        return;
+      }
+    }
+
+    const totals = marketPositions.reduce((acc, position) => {
+      const direction = position.side === 'buy' ? 1 : -1;
+      const pnl = (latestPrice - position.executionPrice) * position.amount * direction * position.leverage;
+      acc.pnl += pnl;
+      return acc;
+    }, { pnl: 0 });
 
     setWallet((current) => ({
       ...current,
@@ -472,7 +562,9 @@ function App({
                         <span className={`position-side ${position.side}`}>
                           {position.side === 'buy' ? 'LONG' : 'SHORT'} {position.leverage}x
                         </span>
-                        <span className="position-time">{position.placedAt.toLocaleTimeString()}</span>
+                        <span className="position-time">
+                          {new Date(position.placedAt).toLocaleTimeString()}
+                        </span>
                         <button
                           type="button"
                           className="close-position-btn"
