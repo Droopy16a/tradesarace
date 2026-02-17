@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { storeUser } from '../../src/lib/auth-client';
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -32,8 +33,9 @@ export default function RegisterForm() {
         return;
       }
 
+      storeUser(payload.user);
       setStatus({ type: 'success', message: payload.message });
-      setTimeout(() => router.push('/login'), 700);
+      setTimeout(() => router.push('/'), 700);
     } catch {
       setStatus({ type: 'error', message: 'Network error. Try again.' });
     } finally {

@@ -147,21 +147,7 @@ export default function MarketWorkspace() {
     if (!currentUser) {
       localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(sharedWallet));
       localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(sharedPositions));
-      return;
     }
-
-    const timeoutId = setTimeout(() => {
-      fetch('/api/user-state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wallet: sharedWallet,
-          positions: sharedPositions,
-        }),
-      }).catch(() => {});
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
   }, [sharedWallet, sharedPositions, currentUser, hasHydrated, isStateReady]);
 
   function handleLogout() {
@@ -242,6 +228,7 @@ export default function MarketWorkspace() {
             setWallet={setSharedWallet}
             positions={sharedPositions}
             setPositions={setSharedPositions}
+            isAuthenticated={!!currentUser}
           />
         </div>
       </Box>

@@ -10,6 +10,7 @@ function App({
   setWallet: setSharedWallet,
   positions: sharedPositions,
   setPositions: setSharedPositions,
+  isAuthenticated = false,
 }) {
   const marketSymbols = {
     bitcoin: 'BTCUSD',
@@ -227,6 +228,37 @@ function App({
     return `${Number(value || 0).toFixed(4)} ${cryptoSymbol}`;
   }
 
+  function normalizePositionsFromServer(nextPositions) {
+    if (!Array.isArray(nextPositions)) return [];
+    return nextPositions.map((position) => ({
+      ...position,
+      placedAt: position.placedAt ? new Date(position.placedAt) : new Date(),
+    }));
+  }
+
+  async function applyServerAction(actionPayload) {
+    try {
+      const response = await fetch('/api/user-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(actionPayload),
+      });
+      const payload = await response.json();
+
+      if (!response.ok || !payload?.ok) {
+        setTradeError(payload?.message || 'Unable to process trade action.');
+        return null;
+      }
+
+      setWallet(payload.wallet);
+      setPositions(normalizePositionsFromServer(payload.positions));
+      return payload;
+    } catch {
+      setTradeError('Network error while updating server state.');
+      return null;
+    }
+  }
+
   function validateOrder() {
     if (!latestPrice) {
       return 'Live price is not available yet.';
@@ -264,7 +296,7 @@ function App({
     return null;
   }
 
-  function handlePlaceOrder(event) {
+  async function handlePlaceOrder(event) {
     event.preventDefault();
     setTradeError('');
     setSuccessMessage('');
@@ -272,6 +304,33 @@ function App({
     const validationError = validateOrder();
     if (validationError) {
       setTradeError(validationError);
+      return;
+    }
+
+    if (isAuthenticated) {
+      if (orderType !== 'market') {
+        setTradeError('Only market orders are enabled for authenticated accounts.');
+        return;
+      }
+
+      const result = await applyServerAction({
+        action: 'open',
+        currency,
+        side,
+        leverage: parsedLeverage,
+        amount: parsedAmount,
+        clientPrice: latestPrice,
+        stopLoss: Number(stopLoss) || null,
+        takeProfit: Number(takeProfit) || null,
+      });
+      if (!result) return;
+
+      setSuccessMessage(result.message || 'Position opened.');
+      setAmount('0.01');
+      setLimitPrice('');
+      setStopLoss('');
+      setTakeProfit('');
+      setTimeout(() => setSuccessMessage(''), 5000);
       return;
     }
 
@@ -304,7 +363,20 @@ function App({
     setTimeout(() => setSuccessMessage(''), 5000);
   }
 
-  function handleClosePosition(positionId) {
+  async function handleClosePosition(positionId) {
+    if (isAuthenticated) {
+      setTradeError('');
+      const result = await applyServerAction({
+        action: 'close',
+        positionId,
+        clientPrice: latestPrice,
+      });
+      if (!result) return;
+      setSuccessMessage(result.message || 'Position closed.');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      return;
+    }
+
     const position = marketPositions.find((p) => p.id === positionId);
     if (!position || !latestPrice) return;
 
@@ -323,7 +395,20 @@ function App({
     setTimeout(() => setSuccessMessage(''), 5000);
   }
 
-  function handleCloseAllPositions() {
+  async function handleCloseAllPositions() {
+    if (isAuthenticated) {
+      setTradeError('');
+      const result = await applyServerAction({
+        action: 'closeAll',
+        currency,
+        clientPrice: latestPrice,
+      });
+      if (!result) return;
+      setSuccessMessage(result.message || 'All positions closed.');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      return;
+    }
+
     if (!marketPositions.length || !latestPrice) return;
 
     const totals = marketPositions.reduce(
@@ -370,10 +455,10 @@ function App({
       }
 
       if (shouldClose) {
-        handleClosePosition(position.id);
+        void handleClosePosition(position.id);
       }
     });
-  }, [latestPrice, marketPositions]);
+  }, [latestPrice, marketPositions, isAuthenticated]);
 
   return (
     <div className="app-shell">

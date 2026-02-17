@@ -1,6 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import { query } from '../../../../src/lib/auth-db';
+import {
+  createSessionToken,
+  SESSION_COOKIE_NAME,
+  sessionCookieOptions,
+} from '../../../../src/lib/session';
 
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
@@ -40,16 +45,28 @@ export async function POST(request) {
         `
           INSERT INTO users (name, email, password_hash, wallet_json, positions_json)
           VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
-          RETURNING id
+          RETURNING id, name, email
         `,
         [name, email, passwordHash, JSON.stringify(DEFAULT_WALLET), JSON.stringify([])]
       );
 
-      return NextResponse.json({
+      const user = {
+        id: Number(result.rows[0].id),
+        name: result.rows[0].name,
+        email: result.rows[0].email,
+      };
+
+      const response = NextResponse.json({
         ok: true,
         message: 'Registration successful.',
-        user: { id: Number(result.rows[0].id), name, email },
+        user,
       });
+      response.cookies.set(
+        SESSION_COOKIE_NAME,
+        createSessionToken(user.id),
+        sessionCookieOptions()
+      );
+      return response;
     } catch (error) {
       if (error?.code === '23505') {
         return NextResponse.json(
