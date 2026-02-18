@@ -6,6 +6,7 @@ function App({
   width = 900,
   height = 520,
   currency = 'bitcoin',
+  marketLabelOverride = '',
   wallet: sharedWallet,
   setWallet: setSharedWallet,
   positions: sharedPositions,
@@ -18,7 +19,8 @@ function App({
     solana: 'SOLUSD',
     dogecoin: 'DOGEUSD',
   };
-  const marketLabel = marketSymbols[currency] || `${currency.toUpperCase()}USD`;
+  const marketLabel = marketLabelOverride || marketSymbols[currency] || `${currency.toUpperCase()}/USD`;
+  const marketBaseSymbol = marketLabel.split('/')[0] || currency.toUpperCase();
 
   const [data, setData] = useState([]);
   const [livePrice, setLivePrice] = useState(0);
@@ -337,6 +339,7 @@ function App({
     const newPosition = {
       id: `${currency}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       currency,
+      cryptoSymbol: marketBaseSymbol,
       side,
       orderType,
       leverage: parsedLeverage,
@@ -569,7 +572,7 @@ function App({
                       <div className="position-details">
                         <div>
                           <span>Size:</span>
-                          <strong>{formatBtc(position.amount, position.cryptoSymbol)}</strong>
+                          <strong>{formatBtc(position.amount, position.cryptoSymbol || marketBaseSymbol)}</strong>
                         </div>
                         <div>
                           <span>Entry:</span>

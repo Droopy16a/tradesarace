@@ -58,6 +58,60 @@ body {
   margin-bottom: 6px;
 }
 
+.workspace-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crypto-search {
+  width: min(340px, 42vw);
+  flex-shrink: 0;
+}
+
+.crypto-search .MuiInputBase-root {
+  border-radius: 9px;
+  background: #0c1120;
+}
+
+.crypto-search .MuiOutlinedInput-notchedOutline {
+  border-color: #324062;
+}
+
+.crypto-search .MuiInputBase-input {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.84rem;
+}
+
+.workspace-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-tab-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 999px;
+}
+
+.workspace-tab-close {
+  border: 0;
+  background: transparent;
+  color: #8f9abc;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.workspace-tab-close:hover {
+  color: #e5ecff;
+}
+
 .app-header {
   display: flex;
   align-items: center;
@@ -933,6 +987,16 @@ body {
     backdrop-filter: blur(8px);
     padding-bottom: 6px;
     margin-bottom: 8px;
+  }
+
+  .workspace-tabs-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .crypto-search {
+    width: 100%;
   }
 
   .app-shell {
