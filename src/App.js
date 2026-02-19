@@ -496,7 +496,7 @@ function App({
             </article>
           </div>
 
-          <div className="chart-card">
+          <div className="chart-card market-chart-card">
             {isLoading && <p>Loading price data...</p>}
             {!isLoading && error && <p className="error-message">{error}</p>}
             {!isLoading && !error && (

@@ -22,19 +22,37 @@ function Chart({
   const pipeClipId = useId().replace(/:/g, '');
   const panStartRef = useRef({ x: 0, viewportStart: 0, viewportEnd: 1 });
 
+  function resolveChartHeight({
+    viewportWidth,
+    viewportHeight,
+    isTerminalFullscreen,
+  }) {
+    if (isTerminalFullscreen) {
+      return Math.max(viewportHeight - 120, 320);
+    }
+
+    if (viewportWidth < 480) {
+      return Math.min(Math.max(Math.round(viewportHeight * 0.44), 300), 430);
+    }
+
+    if (viewportWidth < 768) {
+      return Math.min(Math.max(Math.round(viewportHeight * 0.5), 340), 520);
+    }
+
+    return height;
+  }
+
   useEffect(() => {
     function updateChartSize() {
       const containerWidth = chartWrapperRef.current?.clientWidth || width;
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
       const isChartFullscreen = document.fullscreenElement === chartTerminalRef.current;
-      const fullscreenHeight = Math.max(window.innerHeight - 140, 280);
-      const nextHeight = isChartFullscreen
-        ? fullscreenHeight
-        : viewportWidth < 480
-          ? 250
-          : viewportWidth < 768
-            ? 300
-            : height;
+      const nextHeight = resolveChartHeight({
+        viewportWidth,
+        viewportHeight,
+        isTerminalFullscreen: isChartFullscreen,
+      });
 
       setChartWidth(Math.max(Math.floor(containerWidth), 280));
       setChartHeight(nextHeight);
@@ -61,14 +79,12 @@ function Chart({
       setIsFullscreen(activeFullscreen);
       const containerWidth = chartWrapperRef.current?.clientWidth || width;
       const viewportWidth = window.innerWidth;
-      const fullscreenHeight = Math.max(window.innerHeight - 140, 280);
-      const nextHeight = activeFullscreen
-        ? fullscreenHeight
-        : viewportWidth < 480
-          ? 250
-          : viewportWidth < 768
-            ? 300
-            : height;
+      const viewportHeight = window.innerHeight;
+      const nextHeight = resolveChartHeight({
+        viewportWidth,
+        viewportHeight,
+        isTerminalFullscreen: activeFullscreen,
+      });
       setChartWidth(Math.max(Math.floor(containerWidth), 280));
       setChartHeight(nextHeight);
     }
@@ -110,7 +126,10 @@ function Chart({
   const high = maxY;
   const low = minY;
   const change = open ? ((close - open) / open) * 100 : 0;
-  const chartMargin = { top: 16, right: 72, bottom: 22, left: 20 };
+  const isCompactChart = !isFullscreen && chartWidth < 768;
+  const chartMargin = isCompactChart
+    ? { top: 12, right: 54, bottom: 20, left: 10 }
+    : { top: 16, right: 72, bottom: 22, left: 20 };
   const axisMin = minY - padding;
   const axisMax = maxY + padding;
   const axisRange = Math.max(axisMax - axisMin, 1);
@@ -133,7 +152,7 @@ function Chart({
   const timeRange = Math.max(maxTime - minTime, 1);
   const tickHalfWidth = Math.max(Math.min(plotWidth / Math.max(visibleData.length * 3, 1), 6), 2);
   const leftPadding = tickHalfWidth + 2;
-  const rightPadding = tickHalfWidth + 56;
+  const rightPadding = tickHalfWidth + (isCompactChart ? 40 : 56);
   const xDrawableWidth = Math.max(plotWidth - leftPadding - rightPadding, 1);
 
   function clamp(value, min, max) {
@@ -399,7 +418,7 @@ function Chart({
             '& .MuiChartsAxis-tick': { stroke: 'rgba(126, 147, 190, 0.3)' },
             '& .MuiChartsAxis-tickLabel': {
               fill: '#8f9abc',
-              fontSize: 11,
+              fontSize: isCompactChart ? 10 : 11,
               fontFamily: 'Space Grotesk, sans-serif',
             },
           }}

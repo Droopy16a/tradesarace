@@ -659,6 +659,10 @@ body {
   padding: 14px;
 }
 
+.market-chart-card {
+  overflow: hidden;
+}
+
 .chart-wrapper {
   position: relative;
   width: 100%;
@@ -2203,18 +2207,44 @@ body {
 
   .chart-toolbar {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .market-chart-card {
+    padding: 7px 5px 5px;
+  }
+
+  .chart-terminal {
+    padding: 8px 8px 4px;
+    border-radius: 10px;
+  }
+
+  .chart-tools,
+  .chart-timeframes {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .chart-tools::-webkit-scrollbar,
+  .chart-timeframes::-webkit-scrollbar {
+    display: none;
   }
 
   .chart-tools button,
   .chart-timeframes button,
   .fullscreen-fab {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
   }
 
   .chart-tools button,
   .chart-timeframes button {
-    padding: 4px 7px;
+    padding: 5px 8px;
   }
 
   .fullscreen-fab {
