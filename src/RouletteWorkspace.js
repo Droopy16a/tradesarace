@@ -412,10 +412,10 @@ export default function RouletteWorkspace() {
                 <span>Available</span>
                 <strong>{formatCurrency(availableBalance)}</strong>
               </article>
-              <article>
+              {/* <article>
                 <span>Promo Bonus</span>
                 <strong>{formatCurrency(wallet.bonus)}</strong>
-              </article>
+              </article> */}
             </div>
             {message && <div className="success-message">{message}</div>}
             {error && <p className="trade-error">{error}</p>}

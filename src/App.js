@@ -35,6 +35,15 @@ function App({
   const [takeProfit, setTakeProfit] = useState('');
   const [tradeError, setTradeError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [walletTab, setWalletTab] = useState('wallet');
+  const [transferQuery, setTransferQuery] = useState('');
+  const [transferResults, setTransferResults] = useState([]);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [transferAmount, setTransferAmount] = useState('100');
+  const [transferNote, setTransferNote] = useState('');
+  const [transferError, setTransferError] = useState('');
+  const [transferMessage, setTransferMessage] = useState('');
   const [localPositions, setLocalPositions] = useState([]);
   const [localWallet, setLocalWallet] = useState({
     usdBalance: 12500,
@@ -258,6 +267,100 @@ function App({
     } catch {
       setTradeError('Network error while updating server state.');
       return null;
+    }
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated || walletTab !== 'transfer') return;
+
+    const queryValue = transferQuery.trim();
+    if (queryValue.length < 2) {
+      setTransferResults([]);
+      return;
+    }
+
+    let isActive = true;
+    setTransferLoading(true);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/users-search?q=${encodeURIComponent(queryValue)}`, {
+          cache: 'no-store',
+        });
+        const payload = await response.json();
+
+        if (!isActive) return;
+        if (!response.ok || !payload?.ok) {
+          setTransferResults([]);
+          return;
+        }
+        setTransferResults(payload.users || []);
+      } catch {
+        if (isActive) setTransferResults([]);
+      } finally {
+        if (isActive) setTransferLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
+  }, [transferQuery, isAuthenticated, walletTab]);
+
+  async function handleTransferSubmit(event) {
+    event.preventDefault();
+    setTransferError('');
+    setTransferMessage('');
+
+    if (!isAuthenticated) {
+      setTransferError('Login is required to transfer funds.');
+      return;
+    }
+    if (!selectedRecipient?.id) {
+      setTransferError('Select a recipient first.');
+      return;
+    }
+
+    const amountValue = Number(transferAmount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setTransferError('Enter a valid transfer amount.');
+      return;
+    }
+    if (amountValue > availableBalance) {
+      setTransferError(`Insufficient available balance. ${formatCurrency(availableBalance)} available.`);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/user-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'transfer',
+          recipientId: selectedRecipient.id,
+          amount: amountValue,
+          note: transferNote.trim() || null,
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok || !payload?.ok) {
+        setTransferError(payload?.message || 'Unable to transfer funds.');
+        return;
+      }
+
+      setWallet(payload.wallet);
+      setPositions(normalizePositionsFromServer(payload.positions));
+      setTransferMessage(payload.message || 'Transfer completed.');
+      setTransferAmount('100');
+      setTransferNote('');
+      setTransferQuery('');
+      setTransferResults([]);
+      setSelectedRecipient(null);
+      setTimeout(() => setTransferMessage(''), 5000);
+    } catch {
+      setTransferError('Network error while sending transfer.');
     }
   }
 
@@ -615,6 +718,24 @@ function App({
         <aside className="side-column">
           <section className="wallet-panel">
             <h2>Wallet</h2>
+            <div className="wallet-tabs">
+              <button
+                type="button"
+                className={walletTab === 'wallet' ? 'active' : ''}
+                onClick={() => setWalletTab('wallet')}
+              >
+                Wallet
+              </button>
+              <button
+                type="button"
+                className={walletTab === 'transfer' ? 'active' : ''}
+                onClick={() => setWalletTab('transfer')}
+              >
+                Transfer
+              </button>
+            </div>
+            {walletTab === 'wallet' && (
+              <>
             <div className="wallet-grid">
               <article>
                 <span>Total Balance</span>
@@ -624,10 +745,10 @@ function App({
                 <span>Available</span>
                 <strong>{formatCurrency(availableBalance)}</strong>
               </article>
-              <article>
+              {/* <article>
                 <span>Promo Bonus</span>
                 <strong>{formatCurrency(wallet.bonus)}</strong>
-              </article>
+              </article> */}
               <article>
                 <span>Unrealized PnL</span>
                 <strong className={unrealizedPnl >= 0 ? 'up' : 'down'}>
@@ -637,10 +758,90 @@ function App({
               </article>
             </div>
             <div className="wallet-actions">
-              <button type="button">Deposit</button>
-              <button type="button">Withdraw</button>
-              <button type="button">Transfer</button>
+              {/* <button type="button">Deposit</button>
+              <button type="button">Withdraw</button> */}
+              {/* <button type="button">Transfer</button> */}
             </div>
+              </>
+            )}
+            {walletTab === 'transfer' && (
+              <div className="transfer-panel">
+                {!isAuthenticated && (
+                  <p className="trade-error">Login is required to transfer funds.</p>
+                )}
+                {isAuthenticated && (
+                  <form onSubmit={handleTransferSubmit}>
+                    <label htmlFor="transferUserSearch">Search User</label>
+                    <input
+                      id="transferUserSearch"
+                      type="text"
+                      value={transferQuery}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setTransferQuery(value);
+                        setSelectedRecipient(null);
+                      }}
+                      placeholder="Type name or email..."
+                      autoComplete="off"
+                    />
+
+                    {transferLoading && <p className="input-hint">Searching...</p>}
+                    {!transferLoading && transferResults.length > 0 && (
+                      <div className="transfer-search-results">
+                        {transferResults.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className={`transfer-user-item ${selectedRecipient?.id === user.id ? 'active' : ''}`}
+                            onClick={() => {
+                              setSelectedRecipient(user);
+                              setTransferQuery(user.name);
+                              setTransferResults([]);
+                            }}
+                          >
+                            <strong>{user.name}</strong>
+                            <span>{user.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedRecipient && (
+                      <p className="input-hint">
+                        Sending to: <strong>{selectedRecipient.name}</strong>
+                      </p>
+                    )}
+
+                    <label htmlFor="transferAmount">Amount (USD)</label>
+                    <input
+                      id="transferAmount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={transferAmount}
+                      onChange={(event) => setTransferAmount(event.target.value)}
+                      placeholder="100"
+                    />
+
+                    <label htmlFor="transferNote">Note (optional)</label>
+                    <input
+                      id="transferNote"
+                      type="text"
+                      value={transferNote}
+                      onChange={(event) => setTransferNote(event.target.value)}
+                      placeholder="For game challenge"
+                    />
+
+                    <button type="submit" className="buy-submit">
+                      Send Transfer
+                    </button>
+                  </form>
+                )}
+
+                {transferError && <p className="trade-error">{transferError}</p>}
+                {transferMessage && <div className="success-message">{transferMessage}</div>}
+              </div>
+            )}
           </section>
 
           <section className="trade-panel">

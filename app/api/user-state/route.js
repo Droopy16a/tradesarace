@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '../../../src/lib/auth-db';
+import { query, withTransaction } from '../../../src/lib/auth-db';
 import { getSessionUserIdFromRequest } from '../../../src/lib/session';
 
 const DEFAULT_WALLET = {
@@ -55,6 +55,13 @@ function parseJson(value, fallback) {
     return value ? JSON.parse(value) : fallback;
   } catch {
     return fallback;
+  }
+}
+
+class ApiActionError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.status = status;
   }
 }
 
@@ -441,6 +448,103 @@ export async function PUT(request) {
         wallet: nextWallet,
         positions,
       });
+    }
+
+    if (action === 'transfer') {
+      const recipientId = Number(body?.recipientId);
+      const amount = Number(body?.amount);
+      const note = String(body?.note || '').trim();
+
+      if (!Number.isFinite(recipientId) || recipientId <= 0) {
+        return NextResponse.json(
+          { ok: false, message: 'Recipient is required.' },
+          { status: 400 }
+        );
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return NextResponse.json(
+          { ok: false, message: 'Transfer amount must be greater than 0.' },
+          { status: 400 }
+        );
+      }
+      if (recipientId === userId) {
+        return NextResponse.json(
+          { ok: false, message: 'You cannot transfer to yourself.' },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const transferResult = await withTransaction(async (client) => {
+          const senderRes = await client.query(
+            'SELECT id, wallet_json, positions_json FROM users WHERE id = $1 FOR UPDATE',
+            [userId]
+          );
+          if (!senderRes.rowCount) {
+            throw new ApiActionError('User not found.', 404);
+          }
+
+          const recipientRes = await client.query(
+            'SELECT id, wallet_json FROM users WHERE id = $1 FOR UPDATE',
+            [recipientId]
+          );
+          if (!recipientRes.rowCount) {
+            throw new ApiActionError('Recipient not found.', 404);
+          }
+
+          const senderWallet = normalizeWallet(parseJson(senderRes.rows[0].wallet_json, DEFAULT_WALLET));
+          const senderPositions = normalizePositions(parseJson(senderRes.rows[0].positions_json, []));
+          const recipientWallet = normalizeWallet(parseJson(recipientRes.rows[0].wallet_json, DEFAULT_WALLET));
+
+          const availableBalance = calculateAvailableBalance(senderWallet, senderPositions);
+          if (amount > availableBalance) {
+            throw new ApiActionError('Insufficient available balance.', 400);
+          }
+
+          const nextSenderWallet = {
+            ...senderWallet,
+            usdBalance: senderWallet.usdBalance - amount,
+          };
+          const nextRecipientWallet = {
+            ...recipientWallet,
+            usdBalance: recipientWallet.usdBalance + amount,
+          };
+
+          await client.query(
+            'UPDATE users SET wallet_json = $1::jsonb WHERE id = $2',
+            [JSON.stringify(nextSenderWallet), userId]
+          );
+          await client.query(
+            'UPDATE users SET wallet_json = $1::jsonb WHERE id = $2',
+            [JSON.stringify(nextRecipientWallet), recipientId]
+          );
+
+          return {
+            wallet: nextSenderWallet,
+            positions: senderPositions,
+          };
+        });
+
+        return NextResponse.json({
+          ok: true,
+          message: note
+            ? `Transferred ${amount.toFixed(2)} USD. Note: ${note}`
+            : `Transferred ${amount.toFixed(2)} USD.`,
+          wallet: transferResult.wallet,
+          positions: transferResult.positions,
+        });
+      } catch (error) {
+        if (error instanceof ApiActionError) {
+          return NextResponse.json(
+            { ok: false, message: error.message },
+            { status: error.status }
+          );
+        }
+        return NextResponse.json(
+          { ok: false, message: 'Unable to process transfer.' },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json(
