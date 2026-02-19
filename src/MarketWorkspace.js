@@ -555,7 +555,7 @@ export default function MarketWorkspace() {
               </h2>
             </Link>
             <Link href="/flappy" className="game-card flappy-card">
-              <img src="/flappy.png" alt="Flappy game cover" className="game-card-image" />
+              <img src="/Flappy.png" alt="Flappy game cover" className="game-card-image" />
               <div className="game-card-suits" aria-hidden="true">&clubs; &diams; &hearts; &spades;</div>
               <h2 className="game-card-title">
                 <span>Flappy</span>
