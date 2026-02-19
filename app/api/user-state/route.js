@@ -10,7 +10,6 @@ const DEFAULT_WALLET = {
 const MIN_ORDER_SIZE = 0.001;
 const MAX_CLIENT_PRICE_DEVIATION = 0.2;
 const ALLOWED_LEVERAGE = new Set([1, 2, 3, 5, 10, 20, 50]);
-const MAX_WALLET_ADJUSTMENT = 5000;
 
 function isValidWalletShape(wallet) {
   return (
@@ -418,13 +417,6 @@ export async function PUT(request) {
       if (!Number.isFinite(amount) || amount === 0) {
         return NextResponse.json(
           { ok: false, message: 'Adjustment amount must be a non-zero number.' },
-          { status: 400 }
-        );
-      }
-
-      if (Math.abs(amount) > MAX_WALLET_ADJUSTMENT) {
-        return NextResponse.json(
-          { ok: false, message: `Max adjustment per action is ${MAX_WALLET_ADJUSTMENT} USD.` },
           { status: 400 }
         );
       }

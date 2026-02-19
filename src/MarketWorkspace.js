@@ -38,6 +38,7 @@ const WALLET_STORAGE_KEY = 'tradesarace_wallet_v1';
 const POSITIONS_STORAGE_KEY = 'tradesarace_positions_v1';
 const OPEN_TABS_STORAGE_KEY = 'tradesarace_open_tabs_v1';
 const ACTIVE_TAB_STORAGE_KEY = 'tradesarace_active_tab_v1';
+const WORKSPACE_MODE_STORAGE_KEY = 'tradesarace_workspace_mode_v1';
 const DEFAULT_WALLET = {
   usdBalance: 20000,
   btcBalance: 0.35,
@@ -137,6 +138,8 @@ function loadGuestState() {
 }
 
 export default function MarketWorkspace() {
+  const [workspaceMode, setWorkspaceMode] = useState('market');
+  const [hasInitializedWorkspaceMode, setHasInitializedWorkspaceMode] = useState(false);
   const [markets, setMarkets] = useState([baseMarket]);
   const [activeTab, setActiveTab] = useState(0);
   const [tokenOptions, setTokenOptions] = useState(fallbackTokenOptions);
@@ -149,6 +152,21 @@ export default function MarketWorkspace() {
   const [isStateReady, setIsStateReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  useEffect(() => {
+    try {
+      const storedMode = localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY);
+      if (storedMode === 'market' || storedMode === 'games') {
+        setWorkspaceMode(storedMode);
+      }
+    } catch {}
+    setHasInitializedWorkspaceMode(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasInitializedWorkspaceMode) return;
+    localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, workspaceMode);
+  }, [workspaceMode, hasInitializedWorkspaceMode]);
 
   useEffect(() => {
     let isActive = true;
@@ -348,8 +366,25 @@ export default function MarketWorkspace() {
       <CssBaseline />
       <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
         <div className="workspace-topbar">
-          <div className="auth-buttons">
-            <Link href="/blackjack" className="auth-link login-btn">Blackjack</Link>
+          <div className="workspace-mode-tabs" role="tablist" aria-label="Workspace mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspaceMode === 'market'}
+              className={`workspace-mode-tab ${workspaceMode === 'market' ? 'active' : ''}`}
+              onClick={() => setWorkspaceMode('market')}
+            >
+              Market
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspaceMode === 'games'}
+              className={`workspace-mode-tab ${workspaceMode === 'games' ? 'active' : ''}`}
+              onClick={() => setWorkspaceMode('games')}
+            >
+              Games
+            </button>
           </div>
           <div>
             {!currentUser ? (
@@ -381,6 +416,8 @@ export default function MarketWorkspace() {
             )}
           </div>
         </div>
+        {workspaceMode === 'market' ? (
+          <>
         <div className="workspace-tabs">
           <div className="workspace-tabs-row">
             <Tabs
@@ -499,7 +536,28 @@ export default function MarketWorkspace() {
             isAuthenticated={!!currentUser}
           />
         </div>
+          </>
+        ) : (
+          <section className="games-grid" aria-label="Games list">
+            <Link href="/blackjack" className="game-card blackjack-card">
+              <img src="/blackjack.jpg" alt="Blackjack game cover" className="game-card-image" />
+              <div className="game-card-suits" aria-hidden="true">&clubs; &diams; &hearts; &spades;</div>
+              <h2 className="game-card-title">
+                <span>Black</span>
+                <span>Jack</span>
+              </h2>
+            </Link>
+            <Link href="/roulette" className="game-card roulette-card">
+              <img src="/roulette.png" alt="Roulette game cover" className="game-card-image" />
+              <div className="game-card-suits" aria-hidden="true">&clubs; &diams; &hearts; &spades;</div>
+              <h2 className="game-card-title">
+                <span>Roulette</span>
+              </h2>
+            </Link>
+          </section>
+        )}
       </Box>
     </ThemeProvider>
   );
 }
+

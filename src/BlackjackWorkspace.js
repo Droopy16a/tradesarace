@@ -121,6 +121,11 @@ export default function BlackjackWorkspace() {
   async function handleSettle(delta, reason) {
     setError('');
     if (!Number.isFinite(delta)) return false;
+    if (delta === 0) {
+      setMessage(reason);
+      setTimeout(() => setMessage(''), 5000);
+      return true;
+    }
     if (delta < 0 && Math.abs(delta) > availableBalance) {
       setError('Insufficient available balance.');
       return false;
