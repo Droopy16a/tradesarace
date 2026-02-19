@@ -348,33 +348,38 @@ export default function MarketWorkspace() {
       <CssBaseline />
       <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
         <div className="workspace-topbar">
-          {!currentUser ? (
-            <div className="auth-buttons">
-              <Link href="/login" className="auth-link login-btn">Login</Link>
-              <Link href="/register" className="auth-link register-btn">Register</Link>
-            </div>
-          ) : (
-            <div className="profile-wrap">
-              <button
-                type="button"
-                className="profile-trigger"
-                onClick={() => setShowProfileMenu((open) => !open)}
-              >
-                <img
-                  src={avatarUrl}
-                  alt={`${currentUser.name} profile`}
-                  className="profile-avatar"
-                />
-              </button>
-              {showProfileMenu && (
-                <div className="profile-menu">
-                  <strong>{currentUser.name}</strong>
-                  <span>{currentUser.email}</span>
-                  <button type="button" onClick={handleLogout}>Logout</button>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="auth-buttons">
+            <Link href="/blackjack" className="auth-link login-btn">Blackjack</Link>
+          </div>
+          <div>
+            {!currentUser ? (
+              <div className="auth-buttons">
+                <Link href="/login" className="auth-link login-btn">Login</Link>
+                <Link href="/register" className="auth-link register-btn">Register</Link>
+              </div>
+            ) : (
+              <div className="profile-wrap">
+                <button
+                  type="button"
+                  className="profile-trigger"
+                  onClick={() => setShowProfileMenu((open) => !open)}
+                >
+                  <img
+                    src={avatarUrl}
+                    alt={`${currentUser.name} profile`}
+                    className="profile-avatar"
+                  />
+                </button>
+                {showProfileMenu && (
+                  <div className="profile-menu">
+                    <strong>{currentUser.name}</strong>
+                    <span>{currentUser.email}</span>
+                    <button type="button" onClick={handleLogout}>Logout</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="workspace-tabs">
           <div className="workspace-tabs-row">
