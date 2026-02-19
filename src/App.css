@@ -26,6 +26,7 @@ body {
     radial-gradient(800px 500px at 10% -15%, rgba(81, 128, 255, 0.25), transparent 60%),
     radial-gradient(700px 500px at 100% 0%, rgba(59, 208, 139, 0.16), transparent 55%),
     linear-gradient(180deg, #05070f 0%, #0a1020 70%, #080b14 100%);
+  min-height: 100dvh;
 }
 
 .app-shell,
@@ -340,6 +341,94 @@ body {
   text-shadow:
     0 1px 0 rgba(255, 244, 220, 0.34),
     0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+.flappy-card {
+  background:
+    linear-gradient(180deg, rgba(112, 198, 255, 0.9) 0%, rgba(116, 230, 255, 0.84) 65%, rgba(77, 195, 116, 0.82) 100%),
+    linear-gradient(155deg, rgba(5, 31, 25, 0.96), rgba(7, 65, 47, 0.95));
+}
+
+.flappy-card::before {
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 35%);
+}
+
+.flappy-card::after {
+  background:
+    linear-gradient(to top, rgba(6, 18, 17, 0.86) 0%, rgba(6, 18, 17, 0.2) 55%, rgba(6, 18, 17, 0) 100%),
+    radial-gradient(100% 50% at 50% 100%, rgba(58, 170, 81, 0.55), transparent 80%);
+}
+
+.flappy-card-bird {
+  position: absolute;
+  left: 32%;
+  top: 42%;
+  width: 44px;
+  height: 34px;
+  border-radius: 50% 50% 48% 46%;
+  background: radial-gradient(circle at 32% 30%, #fff7b8, #ffe45f 40%, #f5b600 78%);
+  border: 2px solid rgba(28, 31, 41, 0.35);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.24);
+  z-index: 3;
+}
+
+.flappy-card-bird::before {
+  content: '';
+  position: absolute;
+  right: 5px;
+  top: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #1f2638;
+}
+
+.flappy-card-bird::after {
+  content: '';
+  position: absolute;
+  right: -10px;
+  top: 13px;
+  width: 0;
+  height: 0;
+  border-left: 11px solid #f7902a;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+.flappy-card-pipe {
+  position: absolute;
+  right: 22%;
+  width: 44px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #31b85a, #1c8a43);
+  border: 1px solid rgba(17, 73, 35, 0.5);
+  z-index: 2;
+}
+
+.flappy-card-pipe-top {
+  top: 0;
+  height: 36%;
+}
+
+.flappy-card-pipe-bottom {
+  bottom: 0;
+  height: 34%;
+}
+
+.flappy-card-title {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 18px;
+  z-index: 4;
+  margin: 0;
+  text-align: center;
+  color: #f2fdff;
+  font-size: clamp(1.18rem, 8cqi, 1.7rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 800;
+  text-shadow: 0 2px 12px rgba(5, 25, 29, 0.85);
 }
 
 .crypto-search {
@@ -1350,6 +1439,189 @@ body {
   padding: 8px 10px;
 }
 
+.flappy-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: calc(100dvh - 86px);
+}
+
+.flappy-page-grid > .wallet-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.flappy-page-grid > .wallet-panel h2 {
+  margin: 0;
+}
+
+.flappy-page-grid > .wallet-panel .wallet-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.flappy-page-grid > .wallet-panel .wallet-grid article {
+  padding: 8px 10px;
+}
+
+.flappy-panel {
+  background: linear-gradient(180deg, #101521 0%, #0c111c 100%);
+  border: 1px solid rgba(201, 164, 93, 0.25);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+.flappy-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.flappy-input-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.flappy-input-wrap label {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.flappy-input-wrap input {
+  width: 100%;
+  font-family: 'Space Grotesk', sans-serif;
+  border-radius: 8px;
+  border: 1px solid #324062;
+  background: #0c1120;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  padding: 10px;
+}
+
+.flappy-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flappy-chip {
+  border: 1px solid rgba(142, 187, 255, 0.52);
+  background: rgba(81, 128, 255, 0.2);
+  color: #deecff;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.flappy-start-btn {
+  border: 1px solid rgba(116, 231, 161, 0.65);
+  background: linear-gradient(120deg, rgba(66, 211, 130, 0.95), rgba(22, 160, 84, 0.95));
+  color: #092a16;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  margin-top: 4px;
+  min-width: 150px;
+}
+
+.flappy-start-btn:disabled,
+.flappy-chip:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.flappy-stage {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(121, 164, 255, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 18px 34px rgba(0, 0, 0, 0.35);
+  background: #62b8ff;
+  outline: none;
+}
+
+.flappy-stage.running {
+  box-shadow: inset 0 0 0 1px rgba(115, 255, 187, 0.13), 0 18px 34px rgba(0, 0, 0, 0.35);
+}
+
+.flappy-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.flappy-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 13, 26, 0.22) 0%, rgba(8, 13, 26, 0.66) 100%);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 7px;
+  padding: 16px;
+  text-align: center;
+}
+
+.flappy-hud {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  z-index: 3;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(143, 154, 188, 0.28);
+  border-radius: 10px;
+  background: rgba(7, 13, 26, 0.52);
+  backdrop-filter: blur(4px);
+  padding: 8px 10px;
+}
+
+.flappy-hud-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  color: #eff6ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.flappy-hud p {
+  margin: 0;
+  color: #d4e4ff;
+  font-size: 0.74rem;
+}
+
+.flappy-overlay strong {
+  font-size: 1.2rem;
+  letter-spacing: 0.03em;
+}
+
+.flappy-overlay span {
+  color: #d5e2ff;
+  font-size: 0.84rem;
+}
+
 .roulette-panel {
   background: linear-gradient(180deg, #101521 0%, #0c111c 100%);
   border: 1px solid rgba(201, 164, 93, 0.25);
@@ -2101,6 +2373,58 @@ body {
 
   .roulette-history {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .flappy-page-grid > .wallet-panel .wallet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flappy-panel {
+    padding: 10px;
+    gap: 9px;
+  }
+
+  .flappy-controls {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .flappy-chip-row {
+    justify-content: space-between;
+  }
+
+  .flappy-chip,
+  .flappy-start-btn {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.78rem;
+  }
+
+  .flappy-hud {
+    top: 7px;
+    left: 7px;
+    right: 7px;
+    padding: 7px 8px;
+    gap: 4px;
+  }
+
+  .flappy-hud-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 8px;
+    font-size: 0.74rem;
+  }
+
+  .flappy-hud p {
+    font-size: 0.68rem;
+  }
+
+  .flappy-overlay strong {
+    font-size: 1.02rem;
+  }
+
+  .flappy-overlay span {
+    font-size: 0.76rem;
   }
 
   .game-card-title span {

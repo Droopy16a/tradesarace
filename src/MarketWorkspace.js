@@ -554,6 +554,14 @@ export default function MarketWorkspace() {
                 <span>Roulette</span>
               </h2>
             </Link>
+            <Link href="/flappy" className="game-card flappy-card">
+              <img src="/flappy.png" alt="Flappy game cover" className="game-card-image" />
+              <div className="game-card-suits" aria-hidden="true">&clubs; &diams; &hearts; &spades;</div>
+              <h2 className="game-card-title">
+                <span>Flappy</span>
+                <span>Casino</span>
+              </h2>
+            </Link>
           </section>
         )}
       </Box>
