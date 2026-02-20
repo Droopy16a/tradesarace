@@ -1355,6 +1355,38 @@ a:focus-visible {
   background: rgba(14, 20, 17, 0.78);
 }
 
+.blackjack-bet-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.blackjack-max-btn {
+  border: 1px solid rgba(241, 212, 153, 0.48);
+  background: rgba(241, 212, 153, 0.14);
+  color: #f9e3b8;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.blackjack-max-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.blackjack-hint {
+  margin: 2px 0 0;
+  color: #cfddff;
+  font-size: 0.76rem;
+}
+
 .blackjack-table {
   position: relative;
   padding: 4px;
@@ -1738,8 +1770,10 @@ a:focus-visible {
 }
 
 .flappy-panel {
-  background: linear-gradient(180deg, #101521 0%, #0c111c 100%);
-  border: 1px solid rgba(201, 164, 93, 0.25);
+  background:
+    radial-gradient(120% 110% at 100% -10%, rgba(255, 233, 141, 0.14), transparent 55%),
+    linear-gradient(180deg, #101521 0%, #0c111c 100%);
+  border: 1px solid rgba(201, 164, 93, 0.32);
   border-radius: 16px;
   padding: 16px;
   display: grid;
@@ -1775,6 +1809,27 @@ a:focus-visible {
   color: var(--text-primary);
   font-size: 0.9rem;
   padding: 10px;
+}
+
+.flappy-bet-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.flappy-max-btn {
+  border: 1px solid rgba(142, 187, 255, 0.52);
+  background: rgba(81, 128, 255, 0.2);
+  color: #deecff;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .flappy-chip-row {
@@ -1813,38 +1868,58 @@ a:focus-visible {
 }
 
 .flappy-start-btn:disabled,
-.flappy-chip:disabled {
+.flappy-chip:disabled,
+.flappy-max-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.flappy-status-line {
+  margin: -2px 0 0;
+  color: #a7b9de;
+  font-size: 0.76rem;
 }
 
 .flappy-stage {
   position: relative;
   width: 100%;
   max-width: none;
+  min-height: calc(100dvh - 350px);
   margin: 0 auto;
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(121, 164, 255, 0.35);
+  border: 1px solid rgba(243, 222, 126, 0.48);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 18px 34px rgba(0, 0, 0, 0.35);
-  background: #62b8ff;
+  background: linear-gradient(180deg, #73c8ff 0%, #9eecff 100%);
   outline: none;
 }
 
 .flappy-stage.running {
-  box-shadow: inset 0 0 0 1px rgba(115, 255, 187, 0.13), 0 18px 34px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(130, 255, 187, 0.2), 0 18px 34px rgba(0, 0, 0, 0.35);
+}
+
+.flappy-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 28%),
+    radial-gradient(95% 60% at 50% 100%, rgba(0, 0, 0, 0.18), transparent 70%);
 }
 
 .flappy-canvas {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 
 .flappy-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(8, 13, 26, 0.22) 0%, rgba(8, 13, 26, 0.66) 100%);
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(9, 14, 27, 0.18) 0%, rgba(9, 14, 27, 0.62) 100%);
   display: grid;
   align-content: center;
   justify-items: center;
@@ -1937,10 +2012,64 @@ a:focus-visible {
   padding: 10px;
 }
 
+.roulette-bet-amount-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.roulette-max-btn {
+  border: 1px solid rgba(240, 202, 139, 0.5);
+  background: rgba(240, 202, 139, 0.14);
+  color: #f3deb2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.roulette-bet-quick {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.roulette-bet-quick button {
+  border: 1px solid rgba(240, 202, 139, 0.42);
+  background: rgba(240, 202, 139, 0.1);
+  color: #f3deb2;
+  border-radius: 999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+.roulette-max-btn:disabled,
+.roulette-bet-quick button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .roulette-bet-hint {
   margin: 2px 0 0;
   color: #9ca8ca;
   font-size: 0.78rem;
+}
+
+.roulette-updated {
+  margin: 2px 0 0;
+  color: #c6d5f8;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .roulette-actions {
@@ -2678,6 +2807,20 @@ a:focus-visible {
     font-size: 0.75rem;
   }
 
+  .roulette-bet-amount-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .roulette-max-btn {
+    padding: 9px 10px;
+    font-size: 0.68rem;
+  }
+
+  .roulette-bet-quick button {
+    font-size: 0.68rem;
+    padding: 6px 10px;
+  }
+
   .roulette-plate {
     width: min(92vw, 520px);
     padding: 16px;
@@ -2718,16 +2861,25 @@ a:focus-visible {
     align-items: stretch;
   }
 
+  .flappy-bet-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .flappy-chip-row {
     justify-content: space-between;
   }
 
   .flappy-chip,
-  .flappy-start-btn {
+  .flappy-start-btn,
+  .flappy-max-btn {
     flex: 1;
     min-width: 0;
     text-align: center;
     font-size: 0.78rem;
+  }
+
+  .flappy-status-line {
+    font-size: 0.7rem;
   }
 
   .flappy-hud {

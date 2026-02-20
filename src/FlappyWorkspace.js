@@ -21,9 +21,15 @@ const DEFAULT_WALLET = {
   bonus: 185,
 };
 
-const GRAVITY = 0.42;
-const FLAP_VELOCITY = -6.7;
 const EXP_GROWTH_RATE = 0.16;
+const PIPE_CAP_HEIGHT = 12;
+const BASE_WIDTH = 720;
+const BASE_PLAYABLE_HEIGHT = 320;
+const BASE_SCROLL_SPEED = 165;
+const BASE_GRAVITY = 1320;
+const BASE_FLAP_VELOCITY = -430;
+const BASE_MAX_FALL_VELOCITY = 620;
+const MAX_DELTA_TIME_SECONDS = 0.05;
 
 function normalizeWallet(wallet) {
   if (
@@ -64,33 +70,40 @@ function computeDelta(score, wager) {
   return Number((grossReturn - wager).toFixed(2));
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function getScoreSpeedMultiplier(score) {
-  const safeScore = Math.max(0, Number(score*2.5) || 0);
-  const linearBoost = safeScore * 0.035;
-  const curveBoost = Math.pow(safeScore, 1.16) * 0.0032;
-  return Math.min(1 + linearBoost + curveBoost, 2.8);
+  const safeScore = Math.max(0, Number(score) || 0);
+  const linearBoost = safeScore * 0.028;
+  const curveBoost = Math.pow(safeScore, 1.22) * 0.0016;
+  return Math.min(1 + linearBoost + curveBoost, 2.35);
 }
 
 function getGameMetrics(width, height) {
   const isPortrait = height > width;
-  const birdRadius = Math.max(width * 0.026, 11);
-  const pipeWidth = Math.max(width * 0.085, 46);
-  const gapSize = isPortrait
-    ? Math.min(Math.max(width * 0.32, 120), 160)
-    : Math.min(Math.max(width * 0.24, 140), 210);
-  const pipeSpacing = isPortrait
-    ? Math.min(Math.max(width * 0.44, 170), 230)
-    : Math.min(Math.max(width * 0.42, 220), 320);
-  const pipeSpeed = isPortrait
-    ? Math.min(Math.max(width * 0.0037, 1.95), 2.65)
-    : Math.min(Math.max(width * 0.0032, 2.1), 3.1);
+  const floorHeight = clamp(height * 0.16, 58, 104);
+  const playableHeight = height - floorHeight;
+  const widthScale = clamp(width / BASE_WIDTH, 0.7, 1.35);
+  const heightScale = clamp(playableHeight / BASE_PLAYABLE_HEIGHT, 0.74, 1.4);
+  const motionScale = Math.sqrt(widthScale * heightScale);
+  const birdRadius = clamp(width * 0.026, 11, 17);
+  const pipeWidth = clamp(width * 0.092, 50, 82);
+  const gapSize = clamp(playableHeight * (isPortrait ? 0.35 : 0.31), 130, 210);
+  const pipeSpacing = clamp(width * (isPortrait ? 0.5 : 0.53), 200, 340);
   return {
-    birdX: width * 0.26,
+    birdX: width * 0.27,
     birdRadius,
     pipeWidth,
     gapSize,
     pipeSpacing,
-    pipeSpeed,
+    scrollSpeed: BASE_SCROLL_SPEED * motionScale,
+    gravity: BASE_GRAVITY * heightScale,
+    flapVelocity: BASE_FLAP_VELOCITY * heightScale,
+    maxFallVelocity: BASE_MAX_FALL_VELOCITY * heightScale,
+    floorHeight,
+    playableHeight,
   };
 }
 
@@ -125,6 +138,7 @@ export default function FlappyWorkspace() {
     score: 0,
     running: false,
     lastTime: 0,
+    worldTick: 0,
   });
 
   useEffect(() => {
@@ -205,67 +219,143 @@ export default function FlappyWorkspace() {
     if (!ctx) return;
 
     const state = gameRef.current;
-    const { width, height, pipes, birdY } = state;
-    const { birdX, birdRadius, pipeWidth, gapSize } = getGameMetrics(width, height);
+    const { width, height, pipes, birdY, birdVelocity, worldTick } = state;
+    if (width <= 0 || height <= 0) return;
+    const {
+      birdX,
+      birdRadius,
+      pipeWidth,
+      gapSize,
+      floorHeight,
+      playableHeight,
+      maxFallVelocity,
+    } = getGameMetrics(width, height);
 
     const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, '#62b8ff');
-    sky.addColorStop(1, '#8ee3ff');
+    sky.addColorStop(0, '#61bcff');
+    sky.addColorStop(1, '#93e9ff');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    const sunX = width * 0.78;
+    const sunY = playableHeight * 0.18;
+    const sunRadius = clamp(width * 0.06, 22, 42);
+    const sunGlow = ctx.createRadialGradient(sunX, sunY, sunRadius * 0.4, sunX, sunY, sunRadius * 2.2);
+    sunGlow.addColorStop(0, 'rgba(255, 247, 196, 0.42)');
+    sunGlow.addColorStop(1, 'rgba(255, 247, 196, 0)');
+    ctx.fillStyle = sunGlow;
     ctx.beginPath();
-    ctx.ellipse(width * 0.18, height * 0.22, 42, 18, 0, 0, Math.PI * 2);
-    ctx.ellipse(width * 0.22, height * 0.22, 32, 14, 0, 0, Math.PI * 2);
+    ctx.arc(sunX, sunY, sunRadius * 2.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.beginPath();
-    ctx.ellipse(width * 0.75, height * 0.18, 50, 19, 0, 0, Math.PI * 2);
-    ctx.ellipse(width * 0.70, height * 0.18, 32, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const cloudOffsetA = -(worldTick * 0.2) % (width + 260);
+    const cloudOffsetB = -(worldTick * 0.32) % (width + 320);
+    const cloudW = clamp(width * 0.078, 42, 90);
+    const cloudH = clamp(height * 0.036, 16, 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    for (let i = -1; i < 3; i += 1) {
+      const baseX = cloudOffsetA + i * 260;
+      ctx.beginPath();
+      ctx.ellipse(baseX + cloudW * 1.2, playableHeight * 0.2, cloudW, cloudH, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + cloudW * 2.05, playableHeight * 0.2, cloudW * 0.75, cloudH * 0.82, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    for (let i = -1; i < 3; i += 1) {
+      const baseX = cloudOffsetB + i * 320;
+      ctx.beginPath();
+      ctx.ellipse(baseX + cloudW * 1.5, playableHeight * 0.34, cloudW * 1.1, cloudH * 1.05, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + cloudW * 2.35, playableHeight * 0.34, cloudW * 0.72, cloudH * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
+    const pipeCapHeight = clamp(pipeWidth * 0.26, PIPE_CAP_HEIGHT, 22);
     pipes.forEach((pipe) => {
       const topHeight = pipe.gapY - gapSize / 2;
       const bottomStart = pipe.gapY + gapSize / 2;
 
-      ctx.fillStyle = '#1f9d4b';
+      const pipeBody = ctx.createLinearGradient(pipe.x, 0, pipe.x + pipeWidth, 0);
+      pipeBody.addColorStop(0, '#39c66b');
+      pipeBody.addColorStop(1, '#219a4f');
+      ctx.fillStyle = pipeBody;
       ctx.fillRect(pipe.x, 0, pipeWidth, topHeight);
-      ctx.fillRect(pipe.x, bottomStart, pipeWidth, height - bottomStart);
+      ctx.fillRect(pipe.x, bottomStart, pipeWidth, playableHeight - bottomStart);
 
-      ctx.fillStyle = '#177a3a';
-      ctx.fillRect(pipe.x - 4, Math.max(topHeight - 12, 0), pipeWidth + 8, 12);
-      ctx.fillRect(pipe.x - 4, bottomStart, pipeWidth + 8, 12);
+      const pipeLip = ctx.createLinearGradient(pipe.x - 4, 0, pipe.x + pipeWidth + 4, 0);
+      pipeLip.addColorStop(0, '#2ca75a');
+      pipeLip.addColorStop(1, '#188143');
+      ctx.fillStyle = pipeLip;
+      ctx.fillRect(pipe.x - 4, Math.max(topHeight - pipeCapHeight, 0), pipeWidth + 8, pipeCapHeight);
+      ctx.fillRect(pipe.x - 4, bottomStart, pipeWidth + 8, pipeCapHeight);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.fillRect(pipe.x + pipeWidth * 0.08, 0, Math.max(pipeWidth * 0.12, 3), topHeight);
+      ctx.fillRect(pipe.x + pipeWidth * 0.08, bottomStart, Math.max(pipeWidth * 0.12, 3), playableHeight - bottomStart);
     });
 
-    ctx.fillStyle = '#ffd24b';
+    const tilt = clamp(birdVelocity / Math.max(maxFallVelocity, 1), -1, 1) * 0.55;
+    const wingWave = Math.sin(worldTick * 0.08) * birdRadius * 0.16;
+
+    ctx.save();
+    ctx.translate(birdX, birdY);
+    ctx.rotate(tilt);
+
+    const birdBody = ctx.createRadialGradient(
+      -birdRadius * 0.25,
+      -birdRadius * 0.35,
+      birdRadius * 0.2,
+      0,
+      0,
+      birdRadius * 1.05
+    );
+    birdBody.addColorStop(0, '#fff7b2');
+    birdBody.addColorStop(1, '#f5c111');
+    ctx.fillStyle = birdBody;
     ctx.beginPath();
-    ctx.arc(birdX, birdY, birdRadius, 0, Math.PI * 2);
+    ctx.arc(0, 0, birdRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#efb100';
+    ctx.beginPath();
+    ctx.ellipse(-birdRadius * 0.1, wingWave, birdRadius * 0.44, birdRadius * 0.32, -0.25, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(birdX + birdRadius * 0.35, birdY - birdRadius * 0.15, birdRadius * 0.30, 0, Math.PI * 2);
+    ctx.arc(birdRadius * 0.35, -birdRadius * 0.18, birdRadius * 0.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#2e323f';
     ctx.beginPath();
-    ctx.arc(birdX + birdRadius * 0.45, birdY - birdRadius * 0.12, birdRadius * 0.13, 0, Math.PI * 2);
+    ctx.arc(birdRadius * 0.44, -birdRadius * 0.15, birdRadius * 0.13, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#f68d2e';
     ctx.beginPath();
-    ctx.moveTo(birdX + birdRadius * 0.95, birdY);
-    ctx.lineTo(birdX + birdRadius * 1.35, birdY - birdRadius * 0.18);
-    ctx.lineTo(birdX + birdRadius * 1.35, birdY + birdRadius * 0.18);
+    ctx.moveTo(birdRadius * 0.95, 0);
+    ctx.lineTo(birdRadius * 1.35, -birdRadius * 0.18);
+    ctx.lineTo(birdRadius * 1.35, birdRadius * 0.18);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
 
-    // ctx.fillStyle = 'rgba(12,18,32,0.45)';
-    // ctx.fillRect(0, 0, width, 44);
-    // ctx.fillStyle = '#f3f7ff';
-    // ctx.font = `700 ${Math.max(18, Math.round(width * 0.038))}px Space Grotesk`;
-    // ctx.textAlign = 'left';
-    // ctx.fillText(`Score: ${state.score}`, 14, 30);
+    const floorY = playableHeight;
+    const floor = ctx.createLinearGradient(0, floorY, 0, height);
+    floor.addColorStop(0, '#e6cf79');
+    floor.addColorStop(1, '#b99d45');
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, floorY, width, floorHeight + 1);
+    ctx.fillStyle = '#7fbe42';
+    ctx.fillRect(0, floorY - 10, width, 12);
+    ctx.fillStyle = '#6aa833';
+    const tileSize = clamp(width * 0.034, 18, 30);
+    const tileOffset = worldTick % (tileSize * 2);
+    for (let x = -tileSize * 2; x < width + tileSize * 2; x += tileSize * 2) {
+      ctx.fillRect(x - tileOffset, floorY + 2, tileSize, Math.max(floorHeight - 5, 2));
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.17)';
+    for (let x = -tileSize * 2; x < width + tileSize * 2; x += tileSize * 2) {
+      ctx.fillRect(x - tileOffset + tileSize * 0.2, floorY + 7, tileSize * 0.6, 3);
+    }
   }
 
   function resizeCanvas() {
@@ -274,6 +364,8 @@ export default function FlappyWorkspace() {
     if (!canvas || !stage) return;
 
     const cssWidth = stage.clientWidth;
+    const stageRectHeight = stage.clientHeight;
+    const stageMinHeight = parseFloat(window.getComputedStyle(stage).minHeight) || 0;
     const viewportWidth = window.innerWidth || cssWidth;
     const isMobile = viewportWidth < 700;
     const viewportHeight = window.innerHeight || 800;
@@ -282,7 +374,8 @@ export default function FlappyWorkspace() {
       Math.min(Math.round(cssWidth * 1.35), Math.max(viewportHeight - 210, 480)),
       480
     );
-    const cssHeight = isMobile ? portraitMobileHeight : desktopHeight;
+    const baseHeight = isMobile ? portraitMobileHeight : desktopHeight;
+    const cssHeight = Math.max(baseHeight, stageRectHeight, stageMinHeight);
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = Math.floor(cssWidth * dpr);
@@ -298,7 +391,7 @@ export default function FlappyWorkspace() {
     gameRef.current.height = cssHeight;
 
     if (!gameRef.current.running) {
-      gameRef.current.birdY = cssHeight * 0.5;
+      gameRef.current.birdY = (cssHeight - getGameMetrics(cssWidth, cssHeight).floorHeight) * 0.5;
       drawScene();
     }
   }
@@ -387,40 +480,54 @@ export default function FlappyWorkspace() {
     if (!state.running) return;
 
     if (!state.lastTime) state.lastTime = timestamp;
-    const deltaMs = Math.min(timestamp - state.lastTime, 50);
-    const frameScale = deltaMs / 16.67;
+    const deltaSeconds = Math.min((timestamp - state.lastTime) / 1000, MAX_DELTA_TIME_SECONDS);
     state.lastTime = timestamp;
 
     const width = state.width;
     const height = state.height;
-    const { birdX, birdRadius, pipeWidth, gapSize, pipeSpacing, pipeSpeed } = getGameMetrics(width, height);
+    const {
+      birdX,
+      birdRadius,
+      pipeWidth,
+      gapSize,
+      pipeSpacing,
+      scrollSpeed,
+      gravity,
+      maxFallVelocity,
+      playableHeight,
+    } = getGameMetrics(width, height);
     const speedMultiplier = getScoreSpeedMultiplier(state.score);
-    const dynamicPipeSpeed = pipeSpeed * speedMultiplier;
+    const dynamicPipeSpeed = scrollSpeed * speedMultiplier;
 
-    state.birdVelocity += GRAVITY * frameScale;
-    state.birdY += state.birdVelocity * frameScale;
+    state.worldTick += dynamicPipeSpeed * deltaSeconds;
+    state.birdVelocity += gravity * deltaSeconds;
+    state.birdVelocity = Math.min(state.birdVelocity, maxFallVelocity);
+    state.birdY += state.birdVelocity * deltaSeconds;
 
     const shouldSpawnPipe =
       state.pipes.length === 0 ||
       state.pipes[state.pipes.length - 1].x <= width - pipeSpacing;
     if (shouldSpawnPipe) {
-      const minGapY = gapSize / 2 + 24;
-      const maxGapY = height - gapSize / 2 - 24;
-      const gapY = Math.random() * (maxGapY - minGapY) + minGapY;
-      state.pipes.push({ x: width + 20, gapY, passed: false });
+      const gapMargin = Math.max(24, birdRadius + 16);
+      const minGapY = gapSize / 2 + gapMargin;
+      const maxGapY = playableHeight - gapSize / 2 - gapMargin;
+      const gapY = maxGapY <= minGapY
+        ? playableHeight * 0.5
+        : (Math.random() * (maxGapY - minGapY) + minGapY);
+      state.pipes.push({ x: width + pipeWidth + 24, gapY, passed: false });
     }
 
     state.pipes.forEach((pipe) => {
-      pipe.x -= dynamicPipeSpeed * frameScale;
+      pipe.x -= dynamicPipeSpeed * deltaSeconds;
       if (!pipe.passed && pipe.x + pipeWidth < birdX - birdRadius) {
         pipe.passed = true;
         state.score += 1;
         setScore(state.score);
       }
     });
-    state.pipes = state.pipes.filter((pipe) => pipe.x + pipeWidth > -24);
+    state.pipes = state.pipes.filter((pipe) => pipe.x + pipeWidth > -pipeWidth - 12);
 
-    let collided = state.birdY - birdRadius <= 0 || state.birdY + birdRadius >= height;
+    let collided = state.birdY - birdRadius <= 0 || state.birdY + birdRadius >= playableHeight;
     if (!collided) {
       for (const pipe of state.pipes) {
         const withinX = birdX + birdRadius > pipe.x && birdX - birdRadius < pipe.x + pipeWidth;
@@ -444,9 +551,26 @@ export default function FlappyWorkspace() {
     rafRef.current = requestAnimationFrame(runLoop);
   }
 
+  function applyFlapVelocity() {
+    const state = gameRef.current;
+    const { flapVelocity } = getGameMetrics(state.width, state.height);
+    state.birdVelocity = flapVelocity;
+  }
+
   function flap() {
     if (!gameRef.current.running) return;
-    gameRef.current.birdVelocity = FLAP_VELOCITY;
+    applyFlapVelocity();
+  }
+
+  function handleStageAction() {
+    if (!isRunning && !isSettling) {
+      startRun();
+      requestAnimationFrame(() => {
+        applyFlapVelocity();
+      });
+      return;
+    }
+    flap();
   }
 
   function validateBeforeStart() {
@@ -475,12 +599,13 @@ export default function FlappyWorkspace() {
     setStatusText('Run active. Tap stage or press Space/ArrowUp to flap.');
 
     const state = gameRef.current;
-    state.birdY = state.height * 0.5;
+    state.birdY = getGameMetrics(state.width, state.height).playableHeight * 0.5;
     state.birdVelocity = 0;
     state.pipes = [];
     state.score = 0;
     state.running = true;
     state.lastTime = 0;
+    state.worldTick = 0;
     setScore(0);
     setIsRunning(true);
 
@@ -488,6 +613,8 @@ export default function FlappyWorkspace() {
   }
 
   useEffect(() => {
+    if (!isStateReady) return undefined;
+
     function onKeyDown(event) {
       if (event.code !== 'Space' && event.code !== 'ArrowUp') return;
       event.preventDefault();
@@ -495,6 +622,7 @@ export default function FlappyWorkspace() {
     }
 
     resizeCanvas();
+    const rafId = requestAnimationFrame(resizeCanvas);
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('keydown', onKeyDown);
 
@@ -505,11 +633,12 @@ export default function FlappyWorkspace() {
     }
 
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resizeCanvas);
       window.removeEventListener('keydown', onKeyDown);
       if (resizeObserver) resizeObserver.disconnect();
     };
-  }, []);
+  }, [isStateReady]);
 
   function handleLogout() {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
@@ -523,6 +652,20 @@ export default function FlappyWorkspace() {
 
   const avatarSeed = encodeURIComponent(currentUser?.name || currentUser?.email || 'User');
   const avatarUrl = `https://api.dicebear.com/9.x/initials/svg?seed=${avatarSeed}`;
+
+  if (!isStateReady) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
+          <div className="workspace-loading" role="status" aria-live="polite">
+            <span className="workspace-loader" aria-hidden="true" />
+            <p>Loading your workspace...</p>
+          </div>
+        </Box>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -586,7 +729,32 @@ export default function FlappyWorkspace() {
             <div className="flappy-controls">
               <div className="flappy-input-wrap">
                 <label htmlFor="flappyBet">Bet Amount (USD)</label>
-                <input
+                <div className="flappy-bet-row">
+                  <input
+                    id="flappyBet"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={betAmount}
+                    onChange={(event) => {
+                      setBetAmount(event.target.value);
+                      setError('');
+                    }}
+                    disabled={isRunning || isSettling}
+                  />
+                  <button
+                    type="button"
+                    className="flappy-max-btn"
+                    onClick={() => {
+                      setBetAmount(Math.max(0, Math.floor(availableBalance)).toString());
+                      setError('');
+                    }}
+                    disabled={isRunning || isSettling || availableBalance <= 0}
+                  >
+                    Max
+                  </button>
+                </div>
+                {/* <input
                   id="flappyBet"
                   type="number"
                   min="1"
@@ -594,7 +762,7 @@ export default function FlappyWorkspace() {
                   value={betAmount}
                   onChange={(event) => setBetAmount(event.target.value)}
                   disabled={isRunning || isSettling}
-                />
+                /> */}
               </div>
               <div className="flappy-chip-row">
                 {[10, 25, 50, 100].map((chip) => (
@@ -614,13 +782,13 @@ export default function FlappyWorkspace() {
             <div
               className={`flappy-stage ${isRunning ? 'running' : ''}`}
               ref={stageRef}
-              onPointerDown={flap}
+              onPointerDown={handleStageAction}
               role="button"
               tabIndex={0}
               onKeyDown={(event) => {
                 if (event.key === ' ' || event.key === 'Enter' || event.key === 'ArrowUp') {
                   event.preventDefault();
-                  flap();
+                  handleStageAction();
                 }
               }}
             >
@@ -640,11 +808,12 @@ export default function FlappyWorkspace() {
               {!isRunning && (
                 <div className="flappy-overlay">
                   <strong>Flappy Casino Run</strong>
-                  <span>Reach pipes to increase score.</span>
+                  <span>Tap the stage or press Start to launch.</span>
                   <span>PnL formula: (bet * ((1.16^score) - 1)) - bet</span>
                   <button
                     type="button"
                     className="flappy-start-btn"
+                    onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.stopPropagation();
                       startRun();

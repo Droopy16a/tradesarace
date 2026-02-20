@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -60,6 +60,7 @@ export default function BlackjackWorkspace() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const profileWrapRef = useRef(null);
 
   useEffect(() => {
     let isActive = true;
@@ -110,6 +111,30 @@ export default function BlackjackWorkspace() {
     localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(wallet));
     localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(positions));
   }, [wallet, positions, currentUser, hasHydrated, isStateReady]);
+
+  useEffect(() => {
+    if (!showProfileMenu) return undefined;
+
+    function handlePointerDown(event) {
+      const nextTarget = event.target;
+      if (!(nextTarget instanceof Node)) return;
+      if (profileWrapRef.current?.contains(nextTarget)) return;
+      setShowProfileMenu(false);
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return;
+      setShowProfileMenu(false);
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showProfileMenu]);
 
   const availableBalance = useMemo(() => {
     const marginInUse = positions.reduce((total, pos) => (
@@ -186,6 +211,20 @@ export default function BlackjackWorkspace() {
     })}`;
   }
 
+  if (!isStateReady) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
+          <div className="workspace-loading" role="status" aria-live="polite">
+            <span className="workspace-loader" aria-hidden="true" />
+            <p>Loading blackjack workspace...</p>
+          </div>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
@@ -200,25 +239,30 @@ export default function BlackjackWorkspace() {
               <Link href="/register" className="auth-link register-btn">Register</Link>
             </div>
           ) : (
-            <div className="profile-wrap">
-              <button
-                type="button"
-                className="profile-trigger"
-                onClick={() => setShowProfileMenu((open) => !open)}
-              >
-                <img
-                  src={avatarUrl}
-                  alt={`${currentUser.name} profile`}
-                  className="profile-avatar"
-                />
-              </button>
-              {showProfileMenu && (
-                <div className="profile-menu">
-                  <strong>{currentUser.name}</strong>
-                  <span>{currentUser.email}</span>
-                  <button type="button" onClick={handleLogout}>Logout</button>
-                </div>
-              )}
+            <div className="workspace-topbar-right">
+              <div className="profile-wrap" ref={profileWrapRef}>
+                <button
+                  type="button"
+                  className="profile-trigger"
+                  onClick={() => setShowProfileMenu((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={showProfileMenu}
+                  aria-label="Open profile menu"
+                >
+                  <img
+                    src={avatarUrl}
+                    alt={`${currentUser.name} profile`}
+                    className="profile-avatar"
+                  />
+                </button>
+                {showProfileMenu && (
+                  <div className="profile-menu" role="menu">
+                    <strong>{currentUser.name}</strong>
+                    <span>{currentUser.email}</span>
+                    <button type="button" onClick={handleLogout}>Logout</button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -240,8 +284,8 @@ export default function BlackjackWorkspace() {
                 <strong>{formatCurrency(wallet.bonus)}</strong>
               </article> */}
             </div>
-            {message && <div className="success-message">{message}</div>}
-            {error && <p className="trade-error">{error}</p>}
+            {message && <div className="success-message" role="status" aria-live="polite">{message}</div>}
+            {error && <p className="trade-error" role="alert">{error}</p>}
           </section>
 
           <BlackjackPanel

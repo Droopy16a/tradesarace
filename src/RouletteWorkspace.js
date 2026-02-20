@@ -144,8 +144,10 @@ export default function RouletteWorkspace() {
   const [straightNumber, setStraightNumber] = useState('17');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [lastSpinAt, setLastSpinAt] = useState(null);
 
   const spinTimeoutRef = useRef(null);
+  const profileWrapRef = useRef(null);
 
   useEffect(() => {
     let isActive = true;
@@ -200,6 +202,30 @@ export default function RouletteWorkspace() {
     localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(positions));
   }, [wallet, positions, currentUser, hasHydrated, isStateReady]);
 
+  useEffect(() => {
+    if (!showProfileMenu) return undefined;
+
+    function handlePointerDown(event) {
+      const nextTarget = event.target;
+      if (!(nextTarget instanceof Node)) return;
+      if (profileWrapRef.current?.contains(nextTarget)) return;
+      setShowProfileMenu(false);
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return;
+      setShowProfileMenu(false);
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showProfileMenu]);
+
   const availableBalance = useMemo(() => {
     const marginInUse = positions.reduce((total, pos) => (
       total + ((Number(pos.amount) || 0) * (Number(pos.executionPrice) || 0) / (Number(pos.leverage) || 1))
@@ -225,6 +251,16 @@ export default function RouletteWorkspace() {
     if (!Number.isFinite(parsedBetAmount) || parsedBetAmount <= 0) return 0;
     return betType === 'straight' ? parsedBetAmount * 35 : parsedBetAmount;
   }, [betType, parsedBetAmount]);
+  const hasValidStraightNumber = Number.isInteger(Number(straightNumber))
+    && Number(straightNumber) >= 0
+    && Number(straightNumber) <= 36;
+  const canSpin = (
+    !isSpinning
+    && Number.isFinite(parsedBetAmount)
+    && parsedBetAmount > 0
+    && parsedBetAmount <= availableBalance
+    && (betType !== 'straight' || hasValidStraightNumber)
+  );
 
   async function handleSettle(delta, reason) {
     setError('');
@@ -323,6 +359,7 @@ export default function RouletteWorkspace() {
       setMaskText('Place your bets');
       setResult({ number, color });
       setHistory((current) => [{ number, color }, ...current].slice(0, 8));
+      setLastSpinAt(Date.now());
 
       const outcome = evaluateBet(betPayload, number, color);
       const reason = outcome.win
@@ -331,6 +368,7 @@ export default function RouletteWorkspace() {
 
       await handleSettle(outcome.delta, reason);
       setIsSpinning(false);
+      spinTimeoutRef.current = null;
     }, SPIN_DURATION_MS);
   }
 
@@ -363,6 +401,29 @@ export default function RouletteWorkspace() {
     })}`;
   }
 
+  function formatTime(value) {
+    if (!value) return '--:--:--';
+    return new Date(value).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+
+  if (!isStateReady) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
+          <div className="workspace-loading" role="status" aria-live="polite">
+            <span className="workspace-loader" aria-hidden="true" />
+            <p>Loading roulette workspace...</p>
+          </div>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
@@ -377,25 +438,30 @@ export default function RouletteWorkspace() {
               <Link href="/register" className="auth-link register-btn">Register</Link>
             </div>
           ) : (
-            <div className="profile-wrap">
-              <button
-                type="button"
-                className="profile-trigger"
-                onClick={() => setShowProfileMenu((open) => !open)}
-              >
-                <img
-                  src={avatarUrl}
-                  alt={`${currentUser.name} profile`}
-                  className="profile-avatar"
-                />
-              </button>
-              {showProfileMenu && (
-                <div className="profile-menu">
-                  <strong>{currentUser.name}</strong>
-                  <span>{currentUser.email}</span>
-                  <button type="button" onClick={handleLogout}>Logout</button>
-                </div>
-              )}
+            <div className="workspace-topbar-right">
+              <div className="profile-wrap" ref={profileWrapRef}>
+                <button
+                  type="button"
+                  className="profile-trigger"
+                  onClick={() => setShowProfileMenu((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={showProfileMenu}
+                  aria-label="Open profile menu"
+                >
+                  <img
+                    src={avatarUrl}
+                    alt={`${currentUser.name} profile`}
+                    className="profile-avatar"
+                  />
+                </button>
+                {showProfileMenu && (
+                  <div className="profile-menu" role="menu">
+                    <strong>{currentUser.name}</strong>
+                    <span>{currentUser.email}</span>
+                    <button type="button" onClick={handleLogout}>Logout</button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -417,8 +483,8 @@ export default function RouletteWorkspace() {
                 <strong>{formatCurrency(wallet.bonus)}</strong>
               </article> */}
             </div>
-            {message && <div className="success-message">{message}</div>}
-            {error && <p className="trade-error">{error}</p>}
+            {message && <div className="success-message" role="status" aria-live="polite">{message}</div>}
+            {error && <p className="trade-error" role="alert">{error}</p>}
           </section>
 
           <section className="roulette-panel">
@@ -428,7 +494,10 @@ export default function RouletteWorkspace() {
                 <select
                   id="rouletteBetType"
                   value={betType}
-                  onChange={(event) => setBetType(event.target.value)}
+                  onChange={(event) => {
+                    setBetType(event.target.value);
+                    setError('');
+                  }}
                   disabled={isSpinning}
                 >
                   <option value="red">Red</option>
@@ -449,7 +518,10 @@ export default function RouletteWorkspace() {
                     max="36"
                     step="1"
                     value={straightNumber}
-                    onChange={(event) => setStraightNumber(event.target.value)}
+                    onChange={(event) => {
+                      setStraightNumber(event.target.value);
+                      setError('');
+                    }}
                     disabled={isSpinning}
                   />
                 </div>
@@ -457,20 +529,53 @@ export default function RouletteWorkspace() {
 
               <div className="roulette-bet-row">
                 <label htmlFor="rouletteBetAmount">Bet Amount (USD)</label>
-                <input
-                  id="rouletteBetAmount"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={betAmount}
-                  onChange={(event) => setBetAmount(event.target.value)}
-                  disabled={isSpinning}
-                />
+                <div className="roulette-bet-amount-row">
+                  <input
+                    id="rouletteBetAmount"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={betAmount}
+                    onChange={(event) => {
+                      setBetAmount(event.target.value);
+                      setError('');
+                    }}
+                    disabled={isSpinning}
+                  />
+                  <button
+                    type="button"
+                    className="roulette-max-btn"
+                    onClick={() => {
+                      setBetAmount(Math.max(0, Math.floor(availableBalance)).toString());
+                      setError('');
+                    }}
+                    disabled={isSpinning || availableBalance <= 0}
+                  >
+                    Max
+                  </button>
+                </div>
+                <div className="roulette-bet-quick">
+                  {[10, 25, 50, 100].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => {
+                        setBetAmount(String(chip));
+                        setError('');
+                      }}
+                      disabled={isSpinning}
+                    >
+                      ${chip}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <p className="roulette-bet-hint">
                 Max possible win this bet: {formatCurrency(estimatedMaxWin)}
               </p>
+              <p className="roulette-bet-hint">Available balance: {formatCurrency(availableBalance)}</p>
+              <p className="roulette-updated">Last spin: {formatTime(lastSpinAt)}</p>
             </div>
 
             <div className="roulette-actions">
@@ -478,9 +583,9 @@ export default function RouletteWorkspace() {
                 type="button"
                 className="roulette-spin-btn"
                 onClick={handleSpin}
-                disabled={isSpinning}
+                disabled={!canSpin}
               >
-                Spin
+                {isSpinning ? 'Spinning...' : 'Spin'}
               </button>
               <button
                 type="button"

@@ -58,18 +58,27 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
   const [dealerCards, setDealerCards] = useState([]);
   const [roundActive, setRoundActive] = useState(false);
   const [roundMessage, setRoundMessage] = useState('');
+  const [roundError, setRoundError] = useState('');
   const [isSettling, setIsSettling] = useState(false);
   const [roundKey, setRoundKey] = useState(0);
 
   const playerTotal = useMemo(() => handValue(playerCards), [playerCards]);
   const dealerTotal = useMemo(() => handValue(dealerCards), [dealerCards]);
 
+  function formatCurrency(value) {
+    return `$${Number(value || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
   async function settleRound(delta, message) {
+    setRoundError('');
     setIsSettling(true);
     const ok = await onSettle(delta, message);
     setIsSettling(false);
     if (!ok) {
-      setRoundMessage('Unable to settle this round.');
+      setRoundError('Unable to settle this round.');
       return false;
     }
     setRoundMessage(message);
@@ -80,12 +89,14 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
     if (roundActive || isSettling) return;
 
     const wager = Number(bet);
+    setRoundError('');
+    setRoundMessage('');
     if (!Number.isFinite(wager) || wager <= 0) {
-      setRoundMessage('Enter a valid bet amount.');
+      setRoundError('Enter a valid bet amount.');
       return;
     }
     if (wager > availableBalance) {
-      setRoundMessage('Bet exceeds available balance.');
+      setRoundError('Bet exceeds available balance.');
       return;
     }
 
@@ -122,6 +133,7 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
 
   async function hit() {
     if (!roundActive || isSettling || deck.length === 0) return;
+    setRoundError('');
 
     const drawnCard = deck[0];
     const nextDeck = deck.slice(1);
@@ -141,6 +153,7 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
 
   async function stand() {
     if (!roundActive || isSettling) return;
+    setRoundError('');
 
     const wager = Number(bet);
     const dealerHand = [...dealerCards];
@@ -212,7 +225,10 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
               type="button"
               className="blackjack-chip"
               disabled={roundActive || isSettling}
-              onClick={() => setBet(String(chip))}
+              onClick={() => {
+                setBet(String(chip));
+                setRoundError('');
+              }}
             >
               ${chip}
             </button>
@@ -220,15 +236,34 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
         </div>
       </div>
 
-      <input
-        id="blackjackBet"
-        type="number"
-        min="1"
-        step="1"
-        value={bet}
-        onChange={(event) => setBet(event.target.value)}
-        disabled={roundActive || isSettling}
-      />
+      <div className="blackjack-bet-input-row">
+        <input
+          id="blackjackBet"
+          type="number"
+          min="1"
+          step="1"
+          value={bet}
+          onChange={(event) => {
+            setBet(event.target.value);
+            setRoundError('');
+          }}
+          disabled={roundActive || isSettling}
+        />
+        <button
+          type="button"
+          className="blackjack-max-btn"
+          disabled={roundActive || isSettling || availableBalance <= 0}
+          onClick={() => {
+            setBet(Math.max(0, Math.floor(availableBalance)).toString());
+            setRoundError('');
+          }}
+        >
+          Max
+        </button>
+      </div>
+      <p className="blackjack-hint">
+        Blackjack pays 3:2. Available balance: {formatCurrency(availableBalance)}.
+      </p>
 
       <div className="blackjack-table">
         <div className="blackjack-felt">
@@ -259,7 +294,7 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
 
       <div className="blackjack-actions">
         <button type="button" onClick={startRound} disabled={roundActive || isSettling}>
-          Deal
+          {isSettling ? 'Settling...' : 'Deal'}
         </button>
         <button type="button" onClick={hit} disabled={!roundActive || isSettling}>
           Hit
@@ -269,7 +304,8 @@ export default function BlackjackPanel({ availableBalance, onSettle }) {
         </button>
       </div>
 
-      {roundMessage && <p className="blackjack-message">{roundMessage}</p>}
+      {roundMessage && <p className="blackjack-message" role="status" aria-live="polite">{roundMessage}</p>}
+      {roundError && <p className="trade-error" role="alert">{roundError}</p>}
     </section>
   );
 }
