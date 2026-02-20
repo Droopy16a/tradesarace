@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -152,6 +152,7 @@ export default function MarketWorkspace() {
   const [isStateReady, setIsStateReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileWrapRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -223,6 +224,30 @@ export default function MarketWorkspace() {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!showProfileMenu) return undefined;
+
+    function handlePointerDown(event) {
+      const nextTarget = event.target;
+      if (!(nextTarget instanceof Node)) return;
+      if (profileWrapRef.current?.contains(nextTarget)) return;
+      setShowProfileMenu(false);
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return;
+      setShowProfileMenu(false);
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showProfileMenu]);
 
   useEffect(() => {
     if (!hasHydrated || !isStateReady) return;
@@ -317,6 +342,11 @@ export default function MarketWorkspace() {
     setShowProfileMenu(false);
   }
 
+  function handleWorkspaceModeChange(nextMode) {
+    setWorkspaceMode(nextMode);
+    setShowProfileMenu(false);
+  }
+
   function handleSelectToken(option) {
     if (!option?.id) return;
 
@@ -360,6 +390,21 @@ export default function MarketWorkspace() {
 
   const avatarSeed = encodeURIComponent(currentUser?.name || currentUser?.email || 'User');
   const avatarUrl = `https://api.dicebear.com/9.x/initials/svg?seed=${avatarSeed}`;
+  const activeMarket = markets[activeTab] || markets[0] || baseMarket;
+
+  if (!isStateReady) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box sx={{ px: { xs: 0.5, sm: 1 }, pt: { xs: 0.5, sm: 1 } }}>
+          <div className="workspace-loading" role="status" aria-live="polite">
+            <span className="workspace-loader" aria-hidden="true" />
+            <p>Loading your workspace...</p>
+          </div>
+        </Box>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -372,7 +417,7 @@ export default function MarketWorkspace() {
               role="tab"
               aria-selected={workspaceMode === 'market'}
               className={`workspace-mode-tab ${workspaceMode === 'market' ? 'active' : ''}`}
-              onClick={() => setWorkspaceMode('market')}
+              onClick={() => handleWorkspaceModeChange('market')}
             >
               Market
             </button>
@@ -381,23 +426,26 @@ export default function MarketWorkspace() {
               role="tab"
               aria-selected={workspaceMode === 'games'}
               className={`workspace-mode-tab ${workspaceMode === 'games' ? 'active' : ''}`}
-              onClick={() => setWorkspaceMode('games')}
+              onClick={() => handleWorkspaceModeChange('games')}
             >
               Games
             </button>
           </div>
-          <div>
+          <div className="workspace-topbar-right">
             {!currentUser ? (
               <div className="auth-buttons">
                 <Link href="/login" className="auth-link login-btn">Login</Link>
                 <Link href="/register" className="auth-link register-btn">Register</Link>
               </div>
             ) : (
-              <div className="profile-wrap">
+              <div className="profile-wrap" ref={profileWrapRef}>
                 <button
                   type="button"
                   className="profile-trigger"
                   onClick={() => setShowProfileMenu((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={showProfileMenu}
+                  aria-label="Open profile menu"
                 >
                   <img
                     src={avatarUrl}
@@ -406,7 +454,7 @@ export default function MarketWorkspace() {
                   />
                 </button>
                 {showProfileMenu && (
-                  <div className="profile-menu">
+                  <div className="profile-menu" role="menu">
                     <strong>{currentUser.name}</strong>
                     <span>{currentUser.email}</span>
                     <button type="button" onClick={handleLogout}>Logout</button>
@@ -455,29 +503,24 @@ export default function MarketWorkspace() {
                         }}
                       />
                       <span>{market.label}</span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="workspace-tab-close"
-                        aria-label={`Close ${market.label} tab`}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleCloseTab(market.currency);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ') return;
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleCloseTab(market.currency);
-                        }}
-                      >
-                        ×
-                      </span>
+                      {markets.length > 1 && (
+                        <button
+                          type="button"
+                          className="workspace-tab-close"
+                          aria-label={`Close ${market.label} tab`}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleCloseTab(market.currency);
+                          }}
+                        >
+                          x
+                        </button>
+                      )}
                     </span>
                   )}
                 />
@@ -527,8 +570,8 @@ export default function MarketWorkspace() {
 
         <div role="tabpanel" id={`market-tabpanel-${activeTab}`}>
           <App
-            currency={markets[activeTab].currency}
-            marketLabelOverride={markets[activeTab].label}
+            currency={activeMarket.currency}
+            marketLabelOverride={activeMarket.label}
             wallet={sharedWallet}
             setWallet={setSharedWallet}
             positions={sharedPositions}

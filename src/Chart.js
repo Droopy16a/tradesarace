@@ -103,6 +103,7 @@ function Chart({
   const minVisibleRange = Math.max((totalPoints > 1 ? 12 / (totalPoints - 1) : 1), 0.04);
   const clampedStart = Math.max(0, Math.min(viewport.start, 1));
   const clampedEnd = Math.max(clampedStart + minVisibleRange, Math.min(viewport.end, 1));
+  const canResetView = clampedStart > 0.001 || clampedEnd < 0.999;
   const startIndex = Math.max(0, Math.floor(clampedStart * (totalPoints - 1)));
   const endIndex = Math.min(totalPoints - 1, Math.ceil(clampedEnd * (totalPoints - 1)));
   const visibleData = useMemo(() => {
@@ -210,6 +211,10 @@ function Chart({
     }
   }
 
+  function resetViewport() {
+    setViewport({ start: 0, end: 1 });
+  }
+
   function handleWheel(event) {
     if (!isFullscreen) return;
     event.preventDefault();
@@ -280,6 +285,27 @@ function Chart({
     event.currentTarget.releasePointerCapture?.(event.pointerId);
   }
 
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+
+    function handleKeyDown(event) {
+      const key = event.key.toLowerCase();
+      if (key === 'r') {
+        setViewport({ start: 0, end: 1 });
+      }
+      if (key === 'f') {
+        if (document.fullscreenElement === chartTerminalRef.current) {
+          void document.exitFullscreen().catch(() => {});
+          return;
+        }
+        void chartTerminalRef.current?.requestFullscreen?.().catch(() => {});
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+
   return (
     <div
       className={`chart-terminal ${isFullscreen ? 'is-fullscreen' : ''} ${isZooming ? 'is-zooming' : ''}`}
@@ -301,6 +327,16 @@ function Chart({
           >
             Pipe
           </button>
+          {isFullscreen && (
+            <button
+              type="button"
+              className="chart-reset-btn"
+              onClick={resetViewport}
+              disabled={!canResetView}
+            >
+              Reset
+            </button>
+          )}
         </div>
         <div className="chart-timeframes">
           <button
@@ -340,6 +376,9 @@ function Chart({
           </button>
         </div>
       </div>
+      {isFullscreen && (
+        <p className="chart-fullscreen-hint">Scroll to zoom, drag to pan, press R to reset.</p>
+      )}
 
       <div className="chart-ohlc">
         <span>O {formatPrice(open)}</span>
@@ -361,6 +400,9 @@ function Chart({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onDoubleClick={() => {
+          if (isFullscreen) resetViewport();
+        }}
       >
         <LineChart
           width={chartWidth}
@@ -483,13 +525,13 @@ function Chart({
 
         <button
           type="button"
-          className="fullscreen-fab"
+          className={`fullscreen-fab ${isFullscreen ? 'is-active' : ''}`}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={toggleFullscreen}
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         >
-          {isFullscreen ? '⨉' : '⤢'}
+          {isFullscreen ? 'Exit' : 'Full'}
         </button>
       </div>
 

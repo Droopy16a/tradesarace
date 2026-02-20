@@ -44,6 +44,9 @@ function App({
   const [transferNote, setTransferNote] = useState('');
   const [transferError, setTransferError] = useState('');
   const [transferMessage, setTransferMessage] = useState('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
+  const [lastChartUpdate, setLastChartUpdate] = useState(null);
   const [localPositions, setLocalPositions] = useState([]);
   const [localWallet, setLocalWallet] = useState({
     usdBalance: 12500,
@@ -108,6 +111,7 @@ function App({
         if (isActive) {
           setData(normalized);
           setError('');
+          setLastChartUpdate(Date.now());
         }
       } catch (fetchError) {
         if (isActive && fetchError.name !== 'AbortError') {
@@ -228,6 +232,26 @@ function App({
     );
   }, [marketPositions, latestPrice]);
 
+  const parsedTransferAmount = Number(transferAmount);
+  const hasValidTransferAmount = Number.isFinite(parsedTransferAmount) && parsedTransferAmount > 0;
+  const canSubmitTransfer = (
+    isAuthenticated
+    && Boolean(selectedRecipient?.id)
+    && hasValidTransferAmount
+    && parsedTransferAmount <= availableBalance
+    && !isSubmittingTransfer
+  );
+  const canSubmitOrder = Boolean(latestPrice) && !isLoading && !isSubmittingOrder;
+
+  useEffect(() => {
+    if (isAuthenticated && orderType !== 'market') {
+      setOrderType('market');
+    }
+    if (!isAuthenticated && orderType === 'stop-limit') {
+      setOrderType('market');
+    }
+  }, [isAuthenticated, orderType]);
+
   function formatCurrency(value) {
     return `$${Number(value || 0).toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -237,6 +261,30 @@ function App({
 
   function formatBtc(value, cryptoSymbol = 'BTC') {
     return `${Number(value || 0).toFixed(4)} ${cryptoSymbol}`;
+  }
+
+  function formatTime(value) {
+    if (!value) return '--:--:--';
+    return new Date(value).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+
+  function applyQuickSize(fraction) {
+    if (!latestPrice || !parsedLeverage || availableBalance <= 0) return;
+    const rawSize = (availableBalance * fraction * parsedLeverage) / latestPrice;
+    const normalized = Math.max(0.001, Math.floor(rawSize * 1000) / 1000);
+    setAmount(normalized.toFixed(3));
+    setTradeError('');
+  }
+
+  function handleRetryMarketData() {
+    setError('');
+    setData([]);
+    setIsLoading(true);
+    setTimeframeRefreshKey((current) => current + 1);
   }
 
   function normalizePositionsFromServer(nextPositions) {
@@ -332,6 +380,8 @@ function App({
       return;
     }
 
+    setIsSubmittingTransfer(true);
+
     try {
       const response = await fetch('/api/user-state', {
         method: 'PUT',
@@ -361,6 +411,8 @@ function App({
       setTimeout(() => setTransferMessage(''), 5000);
     } catch {
       setTransferError('Network error while sending transfer.');
+    } finally {
+      setIsSubmittingTransfer(false);
     }
   }
 
@@ -372,7 +424,7 @@ function App({
       return 'Enter a valid order size.';
     }
     if (parsedAmount < 0.001) {
-      return 'Minimum order size is 0.001 BTC.';
+      return `Minimum order size is 0.001 ${marketBaseSymbol}.`;
     }
     if (orderType !== 'market' && parsedLimitPrice <= 0) {
       return 'Limit price must be greater than 0.';
@@ -412,61 +464,66 @@ function App({
       return;
     }
 
-    if (isAuthenticated) {
-      if (orderType !== 'market') {
-        setTradeError('Only market orders are enabled for authenticated accounts.');
+    setIsSubmittingOrder(true);
+
+    try {
+      if (isAuthenticated) {
+        if (orderType !== 'market') {
+          setTradeError('Only market orders are enabled for authenticated accounts.');
+          return;
+        }
+
+        const result = await applyServerAction({
+          action: 'open',
+          currency,
+          side,
+          leverage: parsedLeverage,
+          amount: parsedAmount,
+          clientPrice: latestPrice,
+          stopLoss: Number(stopLoss) || null,
+          takeProfit: Number(takeProfit) || null,
+        });
+        if (!result) return;
+
+        setSuccessMessage(result.message || 'Position opened.');
+        setAmount('0.01');
+        setLimitPrice('');
+        setStopLoss('');
+        setTakeProfit('');
+        setTimeout(() => setSuccessMessage(''), 5000);
         return;
       }
 
-      const result = await applyServerAction({
-        action: 'open',
+      const newPosition = {
+        id: `${currency}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         currency,
+        cryptoSymbol: marketBaseSymbol,
         side,
+        orderType,
         leverage: parsedLeverage,
         amount: parsedAmount,
-        clientPrice: latestPrice,
+        executionPrice,
         stopLoss: Number(stopLoss) || null,
         takeProfit: Number(takeProfit) || null,
-      });
-      if (!result) return;
+        placedAt: new Date(),
+      };
 
-      setSuccessMessage(result.message || 'Position opened.');
+      setPositions((current) => [...current, newPosition]);
+
+      setSuccessMessage(
+        `Position opened: ${side === 'buy' ? 'LONG' : 'SHORT'} ${parsedAmount} ${marketLabel} at ${formatCurrency(
+          executionPrice
+        )} with ${parsedLeverage}x leverage`
+      );
+
       setAmount('0.01');
       setLimitPrice('');
       setStopLoss('');
       setTakeProfit('');
       setTimeout(() => setSuccessMessage(''), 5000);
-      return;
+    } finally {
+      setIsSubmittingOrder(false);
     }
-
-    const newPosition = {
-      id: `${currency}-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-      currency,
-      cryptoSymbol: marketBaseSymbol,
-      side,
-      orderType,
-      leverage: parsedLeverage,
-      amount: parsedAmount,
-      executionPrice,
-      stopLoss: Number(stopLoss) || null,
-      takeProfit: Number(takeProfit) || null,
-      placedAt: new Date(),
-    };
-
-    setPositions((current) => [...current, newPosition]);
-
-    setSuccessMessage(
-      `Position opened: ${side === 'buy' ? 'LONG' : 'SHORT'} ${parsedAmount} ${marketLabel} at ${formatCurrency(
-        executionPrice
-      )} with ${parsedLeverage}x leverage`
-    );
-
-    setAmount('0.01');
-    setLimitPrice('');
-    setStopLoss('');
-    setTakeProfit('');
-
-    setTimeout(() => setSuccessMessage(''), 5000);
   }
 
   async function handleClosePosition(positionId) {
@@ -592,26 +649,43 @@ function App({
               <strong>$4.27B</strong>
             </article>
             <article>
-              <span>Funding / 8h</span>
-              <strong className={unrealizedPnl >= 0 ? 'up' : 'down'}>
-                {unrealizedPnl >= 0 ? '+0.006%' : '-0.004%'}
-              </strong>
+              <span>Last Sync</span>
+              <strong>{formatTime(lastChartUpdate)}</strong>
             </article>
           </div>
 
           <div className="chart-card market-chart-card">
-            {isLoading && <p>Loading price data...</p>}
-            {!isLoading && error && <p className="error-message">{error}</p>}
+            {isLoading && (
+              <div className="market-chart-status" role="status" aria-live="polite">
+                <span className="workspace-loader chart-loader" aria-hidden="true" />
+                <p>Loading live market data...</p>
+              </div>
+            )}
+            {!isLoading && error && (
+              <div className="market-chart-status error" role="alert">
+                <p>{error}</p>
+                <button
+                  type="button"
+                  className="market-retry-btn"
+                  onClick={handleRetryMarketData}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             {!isLoading && !error && (
-              <Chart
-                width={width}
-                height={height}
-                data={data}
-                positions={marketPositions}
-                livePrice={latestPrice}
-                timeStampRequest={timeStampRequest}
-                setTimeStampRequest={setTimeStampRequestWrapper}
-              />
+              <>
+                <Chart
+                  width={width}
+                  height={height}
+                  data={data}
+                  positions={marketPositions}
+                  livePrice={latestPrice}
+                  timeStampRequest={timeStampRequest}
+                  setTimeStampRequest={setTimeStampRequestWrapper}
+                />
+                <p className="chart-meta">Updated {formatTime(lastChartUpdate)}</p>
+              </>
             )}
           </div>
 
@@ -713,6 +787,13 @@ function App({
               </div>
             </section>
           )}
+          {marketPositions.length === 0 && (
+            <section className="positions-panel positions-empty-state">
+              <h2>Open Positions</h2>
+              <p>No active positions for this market yet.</p>
+              <p>Use the order entry panel to open a long or short trade.</p>
+            </section>
+          )}
         </section>
 
         <aside className="side-column">
@@ -780,6 +861,7 @@ function App({
                         const value = event.target.value;
                         setTransferQuery(value);
                         setSelectedRecipient(null);
+                        setTransferError('');
                       }}
                       placeholder="Type name or email..."
                       autoComplete="off"
@@ -797,6 +879,7 @@ function App({
                               setSelectedRecipient(user);
                               setTransferQuery(user.name);
                               setTransferResults([]);
+                              setTransferError('');
                             }}
                           >
                             <strong>{user.name}</strong>
@@ -804,6 +887,9 @@ function App({
                           </button>
                         ))}
                       </div>
+                    )}
+                    {!transferLoading && !selectedRecipient && transferQuery.trim().length >= 2 && transferResults.length === 0 && (
+                      <p className="input-hint transfer-empty-note">No matching users found.</p>
                     )}
 
                     {selectedRecipient && (
@@ -813,15 +899,30 @@ function App({
                     )}
 
                     <label htmlFor="transferAmount">Amount (USD)</label>
-                    <input
-                      id="transferAmount"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={transferAmount}
-                      onChange={(event) => setTransferAmount(event.target.value)}
-                      placeholder="100"
-                    />
+                    <div className="transfer-amount-row">
+                      <input
+                        id="transferAmount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={transferAmount}
+                        onChange={(event) => {
+                          setTransferAmount(event.target.value);
+                          setTransferError('');
+                        }}
+                        placeholder="100"
+                      />
+                      <button
+                        type="button"
+                        className="transfer-max-btn"
+                        onClick={() => {
+                          setTransferAmount(Math.max(0, availableBalance).toFixed(2));
+                          setTransferError('');
+                        }}
+                      >
+                        Max
+                      </button>
+                    </div>
 
                     <label htmlFor="transferNote">Note (optional)</label>
                     <input
@@ -832,14 +933,14 @@ function App({
                       placeholder="For game challenge"
                     />
 
-                    <button type="submit" className="buy-submit">
-                      Send Transfer
+                    <button type="submit" className="buy-submit" disabled={!canSubmitTransfer}>
+                      {isSubmittingTransfer ? 'Sending...' : 'Send Transfer'}
                     </button>
                   </form>
                 )}
 
-                {transferError && <p className="trade-error">{transferError}</p>}
-                {transferMessage && <div className="success-message">{transferMessage}</div>}
+                {transferError && <p className="trade-error" role="alert">{transferError}</p>}
+                {transferMessage && <div className="success-message" role="status" aria-live="polite">{transferMessage}</div>}
               </div>
             )}
           </section>
@@ -848,21 +949,27 @@ function App({
             <h2>Order Entry</h2>
 
             {successMessage && (
-              <div className="success-message">{successMessage}</div>
+              <div className="success-message" role="status" aria-live="polite">{successMessage}</div>
             )}
 
             <div className="side-toggle">
               <button
                 type="button"
                 className={side === 'buy' ? 'active buy' : ''}
-                onClick={() => setSide('buy')}
+                onClick={() => {
+                  setSide('buy');
+                  setTradeError('');
+                }}
               >
                 Buy / Long
               </button>
               <button
                 type="button"
                 className={side === 'sell' ? 'active sell' : ''}
-                onClick={() => setSide('sell')}
+                onClick={() => {
+                  setSide('sell');
+                  setTradeError('');
+                }}
               >
                 Sell / Short
               </button>
@@ -873,18 +980,26 @@ function App({
               <select
                 id="orderType"
                 value={orderType}
-                onChange={(event) => setOrderType(event.target.value)}
+                onChange={(event) => {
+                  setOrderType(event.target.value);
+                  setTradeError('');
+                }}
               >
                 <option value="market">Market</option>
-                <option value="limit">Limit</option>
-                <option value="stop-limit">Stop Limit</option>
+                {!isAuthenticated && <option value="limit">Limit</option>}
               </select>
+              {isAuthenticated && (
+                <p className="trade-form-hint">Account mode currently supports market orders only.</p>
+              )}
 
               <label htmlFor="leverage">Leverage</label>
               <select
                 id="leverage"
                 value={leverage}
-                onChange={(event) => setLeverage(event.target.value)}
+                onChange={(event) => {
+                  setLeverage(event.target.value);
+                  setTradeError('');
+                }}
               >
                 {[1, 2, 3, 5, 10, 20, 50].map((value) => (
                   <option key={value} value={value}>
@@ -893,16 +1008,42 @@ function App({
                 ))}
               </select>
 
-              <label htmlFor="amount">Size ({marketLabel})</label>
+              <label htmlFor="amount">Size ({marketBaseSymbol})</label>
               <input
                 id="amount"
                 type="number"
                 min="0.001"
                 step="0.001"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={(event) => {
+                  setAmount(event.target.value);
+                  setTradeError('');
+                }}
                 placeholder="Min: 0.001"
               />
+              <div className="size-quick-actions">
+                <button
+                  type="button"
+                  onClick={() => applyQuickSize(0.25)}
+                  disabled={!latestPrice || availableBalance <= 0}
+                >
+                  25%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyQuickSize(0.5)}
+                  disabled={!latestPrice || availableBalance <= 0}
+                >
+                  50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyQuickSize(1)}
+                  disabled={!latestPrice || availableBalance <= 0}
+                >
+                  Max
+                </button>
+              </div>
 
               {orderType !== 'market' && (
                 <>
@@ -913,7 +1054,10 @@ function App({
                     min="0"
                     step="1"
                     value={limitPrice}
-                    onChange={(event) => setLimitPrice(event.target.value)}
+                    onChange={(event) => {
+                      setLimitPrice(event.target.value);
+                      setTradeError('');
+                    }}
                     placeholder="Enter limit price"
                   />
                 </>
@@ -931,7 +1075,10 @@ function App({
                 min="0"
                 step="1"
                 value={stopLoss}
-                onChange={(event) => setStopLoss(event.target.value)}
+                onChange={(event) => {
+                  setStopLoss(event.target.value);
+                  setTradeError('');
+                }}
                 placeholder="Stop loss price"
               />
 
@@ -947,7 +1094,10 @@ function App({
                 min="0"
                 step="1"
                 value={takeProfit}
-                onChange={(event) => setTakeProfit(event.target.value)}
+                onChange={(event) => {
+                  setTakeProfit(event.target.value);
+                  setTradeError('');
+                }}
                 placeholder="Take profit price"
               />
 
@@ -966,14 +1116,14 @@ function App({
                 </p>
               </div>
 
-              {tradeError && <p className="trade-error">{tradeError}</p>}
+              {tradeError && <p className="trade-error" role="alert">{tradeError}</p>}
 
               <button
                 type="submit"
                 className={side === 'buy' ? 'buy-submit' : 'sell-submit'}
-                disabled={!latestPrice || isLoading}
+                disabled={!canSubmitOrder}
               >
-                {side === 'buy' ? 'Open Long' : 'Open Short'}
+                {isSubmittingOrder ? 'Submitting...' : side === 'buy' ? 'Open Long' : 'Open Short'}
               </button>
             </form>
           </section>

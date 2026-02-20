@@ -29,6 +29,23 @@ body {
   min-height: 100dvh;
 }
 
+button,
+input,
+select,
+textarea,
+a {
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(81, 128, 255, 0.34), 0 0 0 4px rgba(8, 11, 20, 0.92);
+}
+
 .app-shell,
 .app-content,
 .market-column,
@@ -55,6 +72,45 @@ body {
   gap: 8px;
   margin: 0 0 8px;
   position: relative;
+}
+
+.workspace-topbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-loading {
+  min-height: calc(100dvh - 24px);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(23, 31, 52, 0.82), rgba(16, 21, 36, 0.9));
+  color: #ccd8fa;
+  text-align: center;
+}
+
+.workspace-loading p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.workspace-loader {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid rgba(143, 154, 188, 0.35);
+  border-top-color: rgba(81, 128, 255, 0.9);
+  animation: workspaceSpin 0.85s linear infinite;
+}
+
+@keyframes workspaceSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .workspace-mode-tabs {
@@ -467,16 +523,22 @@ body {
   border: 0;
   background: transparent;
   color: #8f9abc;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
 }
 
 .workspace-tab-close:hover {
   color: #e5ecff;
+  background: rgba(143, 154, 188, 0.2);
 }
 
 .app-header {
@@ -752,6 +814,55 @@ body {
   overflow: hidden;
 }
 
+.market-chart-status {
+  min-height: 180px;
+  border: 1px dashed rgba(143, 154, 188, 0.3);
+  border-radius: 11px;
+  background: rgba(8, 11, 20, 0.6);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  color: #c8d6fb;
+}
+
+.market-chart-status p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 0.9rem;
+}
+
+.market-chart-status.error {
+  border-color: rgba(255, 106, 117, 0.42);
+  color: #ffd3d8;
+}
+
+.chart-loader {
+  width: 28px;
+  height: 28px;
+}
+
+.market-retry-btn {
+  border: 1px solid rgba(255, 106, 117, 0.52);
+  background: rgba(255, 106, 117, 0.18);
+  color: #ffd3d8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chart-meta {
+  margin: 8px 2px 2px;
+  color: #8f9abc;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .chart-wrapper {
   position: relative;
   width: 100%;
@@ -806,6 +917,19 @@ body {
   font-size: 0.73rem;
   font-family: 'Space Grotesk', sans-serif;
   cursor: pointer;
+}
+
+.chart-reset-btn {
+  border-color: rgba(45, 212, 163, 0.5) !important;
+  color: #baf8e6 !important;
+  background: rgba(45, 212, 163, 0.14) !important;
+}
+
+.chart-fullscreen-hint {
+  margin: 0 2px 8px;
+  color: #8f9abc;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
 }
 
 .chart-tools button.active,
@@ -912,12 +1036,17 @@ body {
   background: rgba(9, 15, 29, 0.94);
   color: #dbe5ff;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.fullscreen-fab.is-active {
+  border-color: rgba(45, 212, 163, 0.5);
+  color: #b8ffe2;
 }
 
 .wallet-panel h2,
@@ -1015,6 +1144,31 @@ body {
   font-size: 0.92rem;
 }
 
+.transfer-amount-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.transfer-max-btn {
+  border: 1px solid rgba(81, 128, 255, 0.54);
+  background: rgba(81, 128, 255, 0.16);
+  color: #d7e4ff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.transfer-empty-note {
+  margin: 0;
+}
+
 .transfer-search-results {
   max-height: 180px;
   overflow-y: auto;
@@ -1094,6 +1248,31 @@ body {
 .trade-panel form {
   display: grid;
   gap: 8px;
+}
+
+.trade-form-hint {
+  margin: -2px 0 2px;
+  color: #8f9abc;
+  font-size: 0.74rem;
+}
+
+.size-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.size-quick-actions button {
+  font-family: 'Space Grotesk', sans-serif;
+  border-radius: 8px;
+  border: 1px solid rgba(81, 128, 255, 0.45);
+  background: rgba(81, 128, 255, 0.14);
+  color: #d7e4ff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 8px 10px;
+  cursor: pointer;
 }
 
 .blackjack-panel {
@@ -2024,8 +2203,36 @@ body {
   margin-bottom: 8px;
 }
 
+.leaderboard-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .leaderboard-head span {
   color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.leaderboard-refresh-btn {
+  border: 1px solid rgba(81, 128, 255, 0.52);
+  background: rgba(81, 128, 255, 0.14);
+  color: #d7e4ff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.leaderboard-updated {
+  margin: -2px 0 8px;
+  color: #8f9abc;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2112,13 +2319,17 @@ body {
 
 .trade-error {
   margin: 0;
-  color: #ff9ca4;
+  color: #ffd5da;
   font-size: 0.84rem;
+  border: 1px solid rgba(255, 106, 117, 0.34);
+  background: rgba(255, 106, 117, 0.13);
+  border-radius: 9px;
+  padding: 8px 10px;
 }
 
 .success-message {
   margin: 0 0 10px;
-  padding: 10px;
+  padding: 9px 10px;
   border-radius: 10px;
   border: 1px solid rgba(45, 212, 163, 0.4);
   background: rgba(45, 212, 163, 0.12);
@@ -2140,6 +2351,17 @@ body {
   font-weight: 700;
   letter-spacing: 0.03em;
   cursor: pointer;
+}
+
+.buy-submit:disabled,
+.sell-submit:disabled,
+.close-all-btn:disabled,
+.close-position-btn:disabled,
+.transfer-max-btn:disabled,
+.leaderboard-refresh-btn:disabled,
+.size-quick-actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .buy-submit {
@@ -2177,6 +2399,17 @@ body {
   border-radius: 14px;
   background: linear-gradient(165deg, rgba(23, 31, 52, 0.88), rgba(16, 21, 36, 0.92));
   padding: 14px;
+}
+
+.positions-empty-state {
+  display: grid;
+  gap: 8px;
+}
+
+.positions-empty-state p {
+  margin: 0;
+  color: #a6b5d8;
+  font-size: 0.86rem;
 }
 
 .positions-panel h2 {
@@ -2362,6 +2595,10 @@ body {
     backdrop-filter: blur(8px);
     padding: 6px 2px;
     margin-bottom: 6px;
+  }
+
+  .workspace-loading {
+    min-height: calc(100dvh - 70px);
   }
 
   .workspace-mode-tabs {
@@ -2658,6 +2895,10 @@ body {
     white-space: nowrap;
   }
 
+  .chart-fullscreen-hint {
+    font-size: 0.66rem;
+  }
+
   .chart-tools button,
   .chart-timeframes button {
     padding: 5px 8px;
@@ -2707,6 +2948,23 @@ body {
   .buy-submit,
   .sell-submit {
     font-size: 0.86rem;
+  }
+
+  .size-quick-actions {
+    gap: 6px;
+  }
+
+  .leaderboard-refresh {
+    gap: 6px;
+  }
+
+  .leaderboard-refresh-btn {
+    padding: 5px 8px;
+    font-size: 0.66rem;
+  }
+
+  .leaderboard-updated {
+    font-size: 0.66rem;
   }
 
   .app-content {
