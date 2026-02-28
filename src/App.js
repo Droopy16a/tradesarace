@@ -627,7 +627,7 @@ function App({
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1>TRADESARACE Pro</h1>
+          <h1>TRADYRACE Pro</h1>
           <p>{currency.toUpperCase()} perpetual simulator</p>
         </div>
         <div className="market-pill">{marketLabel} LIVE</div>
